@@ -1,5 +1,7 @@
-import torch
+import math
 
+import torch
+import torch.nn.functional as F
 from einops import rearrange
 from torch import nn
 
@@ -34,7 +36,23 @@ class CausalSelfAttention(nn.Module):
   def attention(self, key, query, value, attention_mask):
 
     ### YOUR CODE HERE
-    raise NotImplementedError
+    seq_len = query.size(2)
+    causal_mask = torch.triu(
+      torch.ones(seq_len, seq_len, device=query.device, dtype=query.dtype),
+      diagonal=1,
+    ) * -10000.0
+    causal_mask = causal_mask.unsqueeze(0).unsqueeze(0)
+    attention_mask = attention_mask.expand(-1, -1, seq_len, -1)
+    attention_mask = torch.minimum(causal_mask, attention_mask)
+
+    attention_scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(self.attention_head_size)
+    attention_scores = attention_scores.masked_fill(attention_mask != 0, float('-inf'))
+    attention_probs = F.softmax(attention_scores, dim=-1)
+    attention_probs = self.dropout(attention_probs)
+    attn_value = torch.matmul(attention_probs, value)
+    return attn_value
+
+
 
 
   def forward(self, hidden_states, attention_mask):
