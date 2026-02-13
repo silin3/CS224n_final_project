@@ -24,8 +24,15 @@ from datasets import (
   SonnetsDataset,
 )
 from models.gpt2 import GPT2Model
+from modules.lora import apply_lora_to_gpt2
 
 from optimizer import AdamW
+
+# LoRA experiment modes:
+# - none: full fine-tuning (default)
+# - qv: LoRA-QV, apply LoRA to attention query and value projections only
+# - all_attn: LoRA-AllAttn, apply LoRA to all attention projections (Q, K, V, O)
+# - attn_mlp: LoRA-Attn+MLP, apply LoRA to attention projections and MLP layers
 
 TQDM_DISABLE = False
 
@@ -42,7 +49,7 @@ def seed_everything(seed=11711):
 
 
 class SonnetGPT(nn.Module):
-  """Your GPT-2 Model designed for paraphrase detection."""
+  """Your GPT-2 Model designed for sonnet generation."""
 
   def __init__(self, args):
     super().__init__()
@@ -50,9 +57,24 @@ class SonnetGPT(nn.Module):
     self.tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
     self.tokenizer.pad_token = self.tokenizer.eos_token
 
-    # By default, fine-tune the full model. TODO: this is maybe not idea.
-    for param in self.gpt.parameters():
-      param.requires_grad = True
+    lora_mode = getattr(args, 'lora_mode', 'none')
+    if lora_mode != 'none':
+      apply_lora_to_gpt2(
+        self.gpt,
+        lora_mode=lora_mode,
+        lora_r=getattr(args, 'lora_r', 8),
+        lora_alpha=getattr(args, 'lora_alpha', None),
+      )
+      # Freeze base model, only train LoRA params
+      for param in self.gpt.parameters():
+        param.requires_grad = False
+      for name, param in self.gpt.named_parameters():
+        if 'lora_' in name:
+          param.requires_grad = True
+    else:
+      # Full fine-tuning
+      for param in self.gpt.parameters():
+        param.requires_grad = True
 
   def forward(self, input_ids, attention_mask):
     """
@@ -61,7 +83,11 @@ class SonnetGPT(nn.Module):
     not just the distribution over next tokens for the last token!
     """
     ### YOUR CODE HERE
-    raise NotImplementedError
+    # raise NotImplementedError
+    gpt_out = self.gpt(input_ids, attention_mask)
+    sequence_output = gpt_out['last_hidden_state']  # [batch_size, seq_len, hidden_size]
+    logits = self.gpt.hidden_state_to_token(sequence_output)  # [batch_size, seq_len, vocab_size]
+    return logits
 
 
   def get_device(self):
@@ -237,6 +263,13 @@ def get_args():
   parser.add_argument("--model_size", type=str, help="The model size as specified on hugging face.",
                       choices=['gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl'], default='gpt2')
 
+  # LoRA options
+  parser.add_argument("--lora_mode", type=str, default='none',
+                      choices=['none', 'qv', 'all_attn', 'attn_mlp'],
+                      help="LoRA experiment: none=full ft, qv=Q+V only, all_attn=Q+K+V+O, attn_mlp=all attn + MLP")
+  parser.add_argument("--lora_r", type=int, default=8, help="LoRA rank")
+  parser.add_argument("--lora_alpha", type=float, default=None, help="LoRA alpha (default: lora_r)")
+
   args = parser.parse_args()
   return args
 
@@ -262,7 +295,16 @@ def add_arguments(args):
 
 if __name__ == "__main__":
   args = get_args()
-  args.filepath = f'{args.epochs}-{args.lr}-sonnet.pt'  # Save path.
+  args = add_arguments(args)  # Add d, l, num_heads before model creation
+  lora_suffix = f"-lora-{args.lora_mode}" if args.lora_mode != 'none' else ""
+  args.filepath = f'{args.epochs}-{args.lr}-sonnet{lora_suffix}.pt'  # Save path.
+  # Use distinct output per LoRA experiment
+  if args.lora_mode != 'none':
+    if '.' in args.sonnet_out.rsplit('/', 1)[-1]:
+      base, ext = args.sonnet_out.rsplit('.', 1)
+      args.sonnet_out = f"{base}{lora_suffix}.{ext}"
+    else:
+      args.sonnet_out = f"{args.sonnet_out}{lora_suffix}"
   seed_everything(args.seed)  # Fix the seed for reproducibility.
   train(args)
   generate_submission_sonnets(args)

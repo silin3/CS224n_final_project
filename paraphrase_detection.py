@@ -29,8 +29,15 @@ from datasets import (
 )
 from evaluation import model_eval_paraphrase, model_test_paraphrase
 from models.gpt2 import GPT2Model
+from modules.lora import LoRALinear, apply_lora_to_gpt2
 
 from optimizer import AdamW
+
+# LoRA experiment modes:
+# - none: full fine-tuning (default)
+# - qv: LoRA-QV, apply LoRA to attention query and value projections only
+# - all_attn: LoRA-AllAttn, apply LoRA to all attention projections (Q, K, V, O)
+# - attn_mlp: LoRA-Attn+MLP, apply LoRA to attention projections and MLP layers
 
 TQDM_DISABLE = False
 
@@ -53,9 +60,26 @@ class ParaphraseGPT(nn.Module):
     self.gpt = GPT2Model.from_pretrained(model=args.model_size, d=args.d, l=args.l, num_heads=args.num_heads)
     self.paraphrase_detection_head = nn.Linear(args.d, 2)  # Paraphrase detection has two outputs: 1 (yes) or 0 (no).
 
-    # By default, fine-tune the full model.
-    for param in self.gpt.parameters():
-      param.requires_grad = True
+    lora_mode = getattr(args, 'lora_mode', 'none')
+    if lora_mode != 'none':
+      apply_lora_to_gpt2(
+        self.gpt,
+        lora_mode=lora_mode,
+        lora_r=getattr(args, 'lora_r', 8),
+        lora_alpha=getattr(args, 'lora_alpha', None),
+      )
+      # Freeze base model, only train LoRA params + classification head
+      for param in self.gpt.parameters():
+        param.requires_grad = False
+      for name, param in self.gpt.named_parameters():
+        if 'lora_' in name:
+          param.requires_grad = True
+      for param in self.paraphrase_detection_head.parameters():
+        param.requires_grad = True
+    else:
+      # Full fine-tuning
+      for param in self.gpt.parameters():
+        param.requires_grad = True
 
   def forward(self, input_ids, attention_mask):
     """
@@ -75,7 +99,7 @@ class ParaphraseGPT(nn.Module):
     #raise NotImplementedError
     gpt_out = self.gpt(input_ids, attention_mask)
     last_token = gpt_out['last_token']  # [batch_size, hidden_size]
-    logits = self.paraphrase_detection_head(last_token)  # [batch_size, 2]
+    logits = self.gpt.hidden_state_to_token(last_token)[:, [3919, 8505]]  # no(0), yes(1)
     return logits
 
 
@@ -177,15 +201,20 @@ def test(args):
   print(f"dev paraphrase acc :: {dev_para_acc :.3f}")
   test_para_y_pred, test_para_sent_ids = model_test_paraphrase(para_test_dataloader, model, device)
 
+  # Autograder BPE token ID：no=3919, yes=8505
+  TOKEN_ID_NO, TOKEN_ID_YES = 3919, 8505
+  dev_para_out = [TOKEN_ID_YES if p == 1 else TOKEN_ID_NO for p in dev_para_y_pred]
+  test_para_out = [TOKEN_ID_YES if p == 1 else TOKEN_ID_NO for p in test_para_y_pred]
+
   with open(args.para_dev_out, "w+") as f:
     f.write(f"id \t Predicted_Is_Paraphrase \n")
-    for p, s in zip(dev_para_sent_ids, dev_para_y_pred):
-      f.write(f"{p}, {s} \n")
+    for sent_id, pred in zip(dev_para_sent_ids, dev_para_out):
+      f.write(f"{sent_id}, {pred} \n")
 
   with open(args.para_test_out, "w+") as f:
     f.write(f"id \t Predicted_Is_Paraphrase \n")
-    for p, s in zip(test_para_sent_ids, test_para_y_pred):
-      f.write(f"{p}, {s} \n")
+    for sent_id, pred in zip(test_para_sent_ids, test_para_out):
+      f.write(f"{sent_id}, {pred} \n")
 
 
 def get_args():
@@ -206,6 +235,13 @@ def get_args():
   parser.add_argument("--model_size", type=str,
                       help="The model size as specified on hugging face. DO NOT use the xl model.",
                       choices=['gpt2', 'gpt2-medium', 'gpt2-large'], default='gpt2')
+
+  # LoRA options
+  parser.add_argument("--lora_mode", type=str, default='none',
+                      choices=['none', 'qv', 'all_attn', 'attn_mlp'],
+                      help="LoRA experiment: none=full ft, qv=Q+V only, all_attn=Q+K+V+O, attn_mlp=all attn + MLP")
+  parser.add_argument("--lora_r", type=int, default=8, help="LoRA rank")
+  parser.add_argument("--lora_alpha", type=float, default=None, help="LoRA alpha (default: lora_r)")
 
   args = parser.parse_args()
   return args
@@ -232,7 +268,18 @@ def add_arguments(args):
 
 if __name__ == "__main__":
   args = get_args()
-  args.filepath = f'{args.epochs}-{args.lr}-paraphrase.pt'  # Save path.
+  args = add_arguments(args)  # Add d, l, num_heads before setting filepath
+  lora_suffix = f"-lora-{args.lora_mode}" if args.lora_mode != 'none' else ""
+  args.filepath = f'{args.epochs}-{args.lr}-paraphrase{lora_suffix}.pt'  # Save path.
+  # Use distinct prediction outputs per LoRA experiment
+  if args.lora_mode != 'none':
+    def add_lora_suffix(path, suffix):
+      if '.' in path.rsplit('/', 1)[-1]:
+        base, ext = path.rsplit('.', 1)
+        return f"{base}{suffix}.{ext}"
+      return f"{path}{suffix}"
+    args.para_dev_out = add_lora_suffix(args.para_dev_out, lora_suffix)
+    args.para_test_out = add_lora_suffix(args.para_test_out, lora_suffix)
   seed_everything(args.seed)  # Fix the seed for reproducibility.
   train(args)
   test(args)
