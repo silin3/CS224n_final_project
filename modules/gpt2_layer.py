@@ -52,8 +52,8 @@ class GPT2Layer(nn.Module):
     hidden_states = self.add(hidden_states, attn_out, self.attention_dense, self.attention_dropout)
 
     normed = self.out_layer_norm(hidden_states)
-    ff_out = self.out_dense(self.interm_af(self.interm_dense(normed)))
-    hidden_states = self.add(hidden_states, ff_out, lambda x: x, self.out_dropout)
+    interm = self.interm_af(self.interm_dense(normed))
+    hidden_states = self.add(hidden_states, interm, self.out_dense, self.out_dropout)
 
     return hidden_states
 
