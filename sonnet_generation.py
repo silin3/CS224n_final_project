@@ -8,6 +8,8 @@ trains your SonnetGPT model and writes the required submission files.
 '''
 
 import argparse
+import logging
+import os
 import random
 import torch
 
@@ -158,6 +160,7 @@ def save_model(model, optimizer, args, filepath):
 
 def train(args):
   """Train GPT-2 for sonnet generation."""
+  logger = logging.getLogger('sonnet')
   device = torch.device('cuda') if args.use_gpu else torch.device('cpu')
   # Create the data and its corresponding datasets and dataloader.
   sonnet_dataset = SonnetsDataset(args.sonnet_path)
@@ -180,6 +183,11 @@ def train(args):
   args = add_arguments(args)
   model = SonnetGPT(args)
   model = model.to(device)
+
+  n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+  n_total_params = sum(p.numel() for p in model.parameters())
+  logger.info(f"Model params: trainable={n_trainable:,}, total={n_total_params:,}")
+  logger.info(f"Data: {n_train} train sonnets, {n_val} val sonnets")
 
   lr = args.lr
   optimizer = AdamW(model.parameters(), lr=lr)
@@ -229,24 +237,30 @@ def train(args):
         val_batches += 1
     val_loss = val_loss / val_batches if val_batches > 0 else float('inf')
 
-    print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, val loss :: {val_loss :.3f}.")
+    saved_flag = ""
+    if val_loss < best_val_loss:
+      best_val_loss = val_loss
+      patience_counter = 0
+      save_model(model, optimizer, args, args.filepath)
+      saved_flag = " [saved]"
+    else:
+      patience_counter += 1
+
+    msg = f"Epoch {epoch}: train loss :: {train_loss :.3f}, val loss :: {val_loss :.3f}, best val loss :: {best_val_loss :.3f}{saved_flag}"
+    print(msg)
+    logger.info(msg)
+
     print('Generating several output sonnets...')
     for batch in held_out_sonnet_dataset:
       encoding = model.tokenizer(batch[1], return_tensors='pt', padding=True, truncation=True).to(device)
       output = model.generate(encoding['input_ids'], temperature=args.temperature, top_p=args.top_p)
       print(f'{batch[1]}{output[1]}\n\n')
 
-    # Save only when validation loss improves
-    if val_loss < best_val_loss:
-      best_val_loss = val_loss
-      patience_counter = 0
-      save_model(model, optimizer, args, args.filepath)
-    else:
-      patience_counter += 1
-
     # Early stopping: stop when val loss doesn't improve for patience epochs
     if patience_counter >= args.patience:
-      print(f"Early stopping at epoch {epoch} (no improvement for {args.patience} epochs).")
+      msg = f"Early stopping at epoch {epoch} (no improvement for {args.patience} epochs)."
+      print(msg)
+      logger.info(msg)
       break
 
 
@@ -335,6 +349,25 @@ def add_arguments(args):
   return args
 
 
+def setup_logger(args, lora_suffix):
+  """Set up file + console logger for training."""
+  os.makedirs('logs', exist_ok=True)
+  log_file = f'logs/sonnet{lora_suffix}.log'
+  logger = logging.getLogger('sonnet')
+  logger.setLevel(logging.INFO)
+  logger.handlers.clear()
+  fh = logging.FileHandler(log_file, mode='w')
+  fh.setLevel(logging.INFO)
+  ch = logging.StreamHandler()
+  ch.setLevel(logging.INFO)
+  fmt = logging.Formatter('%(asctime)s | %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+  fh.setFormatter(fmt)
+  ch.setFormatter(fmt)
+  logger.addHandler(fh)
+  logger.addHandler(ch)
+  return logger
+
+
 if __name__ == "__main__":
   args = get_args()
   args = add_arguments(args)  # Add d, l, num_heads before model creation
@@ -347,6 +380,8 @@ if __name__ == "__main__":
       args.sonnet_out = f"{base}{lora_suffix}.{ext}"
     else:
       args.sonnet_out = f"{args.sonnet_out}{lora_suffix}"
+  logger = setup_logger(args, lora_suffix)
+  logger.info(f"Args: {vars(args)}")
   seed_everything(args.seed)  # Fix the seed for reproducibility.
   train(args)
   generate_submission_sonnets(args)

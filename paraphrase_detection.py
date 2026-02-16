@@ -12,6 +12,8 @@ trains and evaluates your ParaphraseGPT model and writes the required submission
 '''
 
 import argparse
+import logging
+import os
 import random
 import torch
 
@@ -119,6 +121,7 @@ def save_model(model, optimizer, args, filepath):
 
 def train(args):
   """Train GPT-2 for paraphrase detection on the Quora dataset."""
+  logger = logging.getLogger('paraphrase')
   device = torch.device('cuda') if args.use_gpu else torch.device('cpu')
   # Create the data and its corresponding datasets and dataloader.
   para_train_data = load_paraphrase_data(args.para_train)
@@ -135,6 +138,10 @@ def train(args):
   args = add_arguments(args)
   model = ParaphraseGPT(args)
   model = model.to(device)
+
+  n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+  n_total = sum(p.numel() for p in model.parameters())
+  logger.info(f"Model params: trainable={n_trainable:,}, total={n_total:,}")
 
   lr = args.lr
   optimizer = AdamW(model.parameters(), lr=lr, weight_decay=0.)
@@ -167,11 +174,15 @@ def train(args):
 
     dev_acc, dev_f1, *_ = model_eval_paraphrase(para_dev_dataloader, model, device)
 
+    saved_flag = ""
     if dev_acc > best_dev_acc:
       best_dev_acc = dev_acc
       save_model(model, optimizer, args, args.filepath)
+      saved_flag = " [saved]"
 
-    print(f"Epoch {epoch}: train loss :: {train_loss :.3f}, dev acc :: {dev_acc :.3f}")
+    msg = f"Epoch {epoch}: train loss :: {train_loss :.3f}, dev acc :: {dev_acc :.3f}, dev f1 :: {dev_f1 :.3f}, best dev acc :: {best_dev_acc :.3f}{saved_flag}"
+    print(msg)
+    logger.info(msg)
 
 
 @torch.no_grad()
@@ -197,7 +208,9 @@ def test(args):
   para_test_dataloader = DataLoader(para_test_data, shuffle=True, batch_size=args.batch_size,
                                     collate_fn=para_test_data.collate_fn)
 
+  logger = logging.getLogger('paraphrase')
   dev_para_acc, _, dev_para_y_pred, _, dev_para_sent_ids = model_eval_paraphrase(para_dev_dataloader, model, device)
+  logger.info(f"[Test] dev paraphrase acc :: {dev_para_acc :.3f}")
   print(f"dev paraphrase acc :: {dev_para_acc :.3f}")
   test_para_y_pred, test_para_sent_ids = model_test_paraphrase(para_test_dataloader, model, device)
 
@@ -266,6 +279,25 @@ def add_arguments(args):
   return args
 
 
+def setup_logger(args, lora_suffix):
+  """Set up file + console logger for training."""
+  os.makedirs('logs', exist_ok=True)
+  log_file = f'logs/paraphrase{lora_suffix}.log'
+  logger = logging.getLogger('paraphrase')
+  logger.setLevel(logging.INFO)
+  logger.handlers.clear()
+  fh = logging.FileHandler(log_file, mode='w')
+  fh.setLevel(logging.INFO)
+  ch = logging.StreamHandler()
+  ch.setLevel(logging.INFO)
+  fmt = logging.Formatter('%(asctime)s | %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+  fh.setFormatter(fmt)
+  ch.setFormatter(fmt)
+  logger.addHandler(fh)
+  logger.addHandler(ch)
+  return logger
+
+
 if __name__ == "__main__":
   args = get_args()
   args = add_arguments(args)  # Add d, l, num_heads before setting filepath
@@ -280,6 +312,8 @@ if __name__ == "__main__":
       return f"{path}{suffix}"
     args.para_dev_out = add_lora_suffix(args.para_dev_out, lora_suffix)
     args.para_test_out = add_lora_suffix(args.para_test_out, lora_suffix)
+  logger = setup_logger(args, lora_suffix)
+  logger.info(f"Args: {vars(args)}")
   seed_everything(args.seed)  # Fix the seed for reproducibility.
   train(args)
   test(args)
