@@ -1,0 +1,6 @@
+2026-02-17 09:21:12 | Args: {'para_train': 'data/quora-train.csv', 'para_dev': 'data/quora-dev.csv', 'para_test': 'data/quora-test-student.csv', 'para_dev_out': 'predictions/para-dev-output-lora-attn_mlp.csv', 'para_test_out': 'predictions/para-test-output-lora-attn_mlp.csv', 'seed': 11711, 'epochs': 10, 'use_gpu': True, 'test_only': True, 'batch_size': 8, 'lr': 1e-05, 'model_size': 'gpt2', 'lora_mode': 'attn_mlp', 'lora_r': 8, 'lora_alpha': None, 'd': 768, 'l': 12, 'num_heads': 12, 'filepath': '10-1e-05-paraphrase-lora-attn_mlp.pt'}
+2026-02-17 09:21:18 | [Test] Loaded model from 10-1e-05-paraphrase-lora-attn_mlp.pt
+2026-02-17 09:21:18 | [Test] Model: gpt2, lora_mode=attn_mlp, lora_r=8, lr=1e-05, epochs=10, batch_size=32
+2026-02-17 09:21:18 | [Test] Params: trainable=1,328,642, total=126,359,042
+2026-02-17 09:25:06 | [Test] Dev — acc: 0.847, f1: 0.837, loss: 0.333
+2026-02-17 09:28:48 | [Test] Predictions saved to predictions/para-dev-output-lora-attn_mlp.csv and predictions/para-test-output-lora-attn_mlp.csv

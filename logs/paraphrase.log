@@ -1,0 +1,6 @@
+2026-02-17 08:04:03 | Args: {'para_train': 'data/quora-train.csv', 'para_dev': 'data/quora-dev.csv', 'para_test': 'data/quora-test-student.csv', 'para_dev_out': 'predictions/para-dev-output.csv', 'para_test_out': 'predictions/para-test-output.csv', 'seed': 11711, 'epochs': 10, 'use_gpu': True, 'test_only': True, 'batch_size': 8, 'lr': 1e-05, 'model_size': 'gpt2', 'lora_mode': 'none', 'lora_r': 8, 'lora_alpha': None, 'd': 768, 'l': 12, 'num_heads': 12, 'filepath': '10-1e-05-paraphrase.pt'}
+2026-02-17 08:04:07 | [Test] Loaded model from 10-1e-05-paraphrase.pt
+2026-02-17 08:04:07 | [Test] Model: gpt2, lora_mode=none, lora_r=N/A, lr=1e-05, epochs=10, batch_size=16
+2026-02-17 08:04:07 | [Test] Params: trainable=125,031,938, total=125,031,938
+2026-02-17 08:07:08 | [Test] Dev — acc: 0.896, f1: 0.888, loss: 0.385
+2026-02-17 08:10:02 | [Test] Predictions saved to predictions/para-dev-output.csv and predictions/para-test-output.csv

@@ -356,7 +356,7 @@ def setup_logger(args, lora_suffix):
   logger = logging.getLogger('sonnet')
   logger.setLevel(logging.INFO)
   logger.handlers.clear()
-  fh = logging.FileHandler(log_file, mode='w')
+  fh = logging.FileHandler(log_file, mode='a')
   fh.setLevel(logging.INFO)
   ch = logging.StreamHandler()
   ch.setLevel(logging.INFO)

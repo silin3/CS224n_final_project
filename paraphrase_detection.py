@@ -188,14 +188,25 @@ def train(args):
 @torch.no_grad()
 def test(args):
   """Evaluate your model on the dev and test datasets; save the predictions to disk."""
+  logger = logging.getLogger('paraphrase')
   device = torch.device('cuda') if args.use_gpu else torch.device('cpu')
   saved = torch.load(args.filepath)
 
-  model = ParaphraseGPT(saved['args'])
+  saved_args = saved['args']
+  model = ParaphraseGPT(saved_args)
   model.load_state_dict(saved['model'])
   model = model.to(device)
   model.eval()
   print(f"Loaded model to test from {args.filepath}")
+
+  # Log model info
+  n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+  n_total = sum(p.numel() for p in model.parameters())
+  logger.info(f"[Test] Loaded model from {args.filepath}")
+  logger.info(f"[Test] Model: {saved_args.model_size}, lora_mode={getattr(saved_args, 'lora_mode', 'none')}, "
+              f"lora_r={getattr(saved_args, 'lora_r', 'N/A')}, lr={saved_args.lr}, epochs={saved_args.epochs}, "
+              f"batch_size={getattr(saved_args, 'batch_size', 'N/A')}")
+  logger.info(f"[Test] Params: trainable={n_trainable:,}, total={n_total:,}")
 
   para_dev_data = load_paraphrase_data(args.para_dev)
   para_test_data = load_paraphrase_data(args.para_test, split='test')
@@ -208,10 +219,24 @@ def test(args):
   para_test_dataloader = DataLoader(para_test_data, shuffle=True, batch_size=args.batch_size,
                                     collate_fn=para_test_data.collate_fn)
 
-  logger = logging.getLogger('paraphrase')
-  dev_para_acc, _, dev_para_y_pred, _, dev_para_sent_ids = model_eval_paraphrase(para_dev_dataloader, model, device)
-  logger.info(f"[Test] dev paraphrase acc :: {dev_para_acc :.3f}")
-  print(f"dev paraphrase acc :: {dev_para_acc :.3f}")
+  # Evaluate on dev set (has labels)
+  dev_para_acc, dev_para_f1, dev_para_y_pred, dev_para_y_true, dev_para_sent_ids = model_eval_paraphrase(para_dev_dataloader, model, device)
+  # Compute dev loss
+  dev_loss = 0
+  dev_batches = 0
+  for batch in para_dev_dataloader:
+    b_ids = batch['token_ids'].to(device)
+    b_mask = batch['attention_mask'].to(device)
+    labels = batch['labels'].flatten().to(device)
+    logits = model(b_ids, b_mask)
+    dev_loss += F.cross_entropy(logits, labels, reduction='mean').item()
+    dev_batches += 1
+  dev_loss = dev_loss / dev_batches
+
+  logger.info(f"[Test] Dev — acc: {dev_para_acc :.3f}, f1: {dev_para_f1 :.3f}, loss: {dev_loss :.3f}")
+  print(f"dev paraphrase acc :: {dev_para_acc :.3f}, f1 :: {dev_para_f1 :.3f}, loss :: {dev_loss :.3f}")
+
+  # Generate test predictions (no labels available)
   test_para_y_pred, test_para_sent_ids = model_test_paraphrase(para_test_dataloader, model, device)
 
   # Autograder BPE token ID：no=3919, yes=8505
@@ -229,6 +254,8 @@ def test(args):
     for sent_id, pred in zip(test_para_sent_ids, test_para_out):
       f.write(f"{sent_id}, {pred} \n")
 
+  logger.info(f"[Test] Predictions saved to {args.para_dev_out} and {args.para_test_out}")
+
 
 def get_args():
   parser = argparse.ArgumentParser()
@@ -242,6 +269,7 @@ def get_args():
   parser.add_argument("--seed", type=int, default=11711)
   parser.add_argument("--epochs", type=int, default=10)
   parser.add_argument("--use_gpu", action='store_true')
+  parser.add_argument("--test_only", action='store_true', help="Skip training, only run test on saved model")
 
   parser.add_argument("--batch_size", help='sst: 64, cfimdb: 8 can fit a 12GB GPU', type=int, default=8)
   parser.add_argument("--lr", type=float, help="learning rate", default=1e-5)
@@ -286,7 +314,7 @@ def setup_logger(args, lora_suffix):
   logger = logging.getLogger('paraphrase')
   logger.setLevel(logging.INFO)
   logger.handlers.clear()
-  fh = logging.FileHandler(log_file, mode='w')
+  fh = logging.FileHandler(log_file, mode='a')
   fh.setLevel(logging.INFO)
   ch = logging.StreamHandler()
   ch.setLevel(logging.INFO)
@@ -315,5 +343,6 @@ if __name__ == "__main__":
   logger = setup_logger(args, lora_suffix)
   logger.info(f"Args: {vars(args)}")
   seed_everything(args.seed)  # Fix the seed for reproducibility.
-  train(args)
+  if not args.test_only:
+    train(args)
   test(args)
