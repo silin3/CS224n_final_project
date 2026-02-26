@@ -7,7 +7,9 @@ Trains and evaluates GPT2SentimentClassifier on SST and CFIMDB
 import random, numpy as np, argparse
 from types import SimpleNamespace
 import csv
-
+import os
+import logging
+from datetime import datetime
 import torch
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
@@ -31,6 +33,25 @@ def seed_everything(seed=11711):
   torch.backends.cudnn.benchmark = False
   torch.backends.cudnn.deterministic = True
 
+def setup_logger(log_dir: str, run_name: str):
+  os.makedirs(log_dir, exist_ok=True)
+  log_path = os.path.join(log_dir, f"{run_name}.log")
+  logger = logging.getLogger(run_name)
+  logger.setLevel(logging.INFO)
+  logger.propagate = False
+  if logger.handlers:
+    logger.handlers.clear()
+  fmt = logging.Formatter("%(asctime)s | %(levelname)s | %(message)s")
+  fh = logging.FileHandler(log_path)
+  fh.setLevel(logging.INFO)
+  fh.setFormatter(fmt)
+  sh = logging.StreamHandler()
+  sh.setLevel(logging.INFO)
+  sh.setFormatter(fmt)
+  logger.addHandler(fh)
+  logger.addHandler(sh)
+  logger.info(f"Logging to: {log_path}")
+  return logger, log_path
 
 class GPT2SentimentClassifier(torch.nn.Module):
   '''

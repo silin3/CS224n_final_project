@@ -372,15 +372,10 @@ if __name__ == "__main__":
   args = get_args()
   args = add_arguments(args)  # Add d, l, num_heads before model creation
   lora_suffix = f"-lora-{args.lora_mode}" if args.lora_mode != 'none' else ""
-  args.filepath = f'{args.epochs}-{args.lr}-sonnet{lora_suffix}.pt'  # Save path.
-  # Use distinct output per LoRA experiment
-  if args.lora_mode != 'none':
-    if '.' in args.sonnet_out.rsplit('/', 1)[-1]:
-      base, ext = args.sonnet_out.rsplit('.', 1)
-      args.sonnet_out = f"{base}{lora_suffix}.{ext}"
-    else:
-      args.sonnet_out = f"{args.sonnet_out}{lora_suffix}"
-  logger = setup_logger(args, lora_suffix)
+  exp_tag = f"{args.model_size}-{args.epochs}-{args.lr}{lora_suffix}"
+  args.filepath = f'{exp_tag}-sonnet.pt'  # Save path.
+  args.sonnet_out = f'predictions/sonnets-{exp_tag}.txt'
+  logger = setup_logger(args, f'-{exp_tag}')
   logger.info(f"Args: {vars(args)}")
   seed_everything(args.seed)  # Fix the seed for reproducibility.
   train(args)

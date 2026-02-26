@@ -4,5 +4,11 @@
 2026-02-17 09:03:55 | [Test] Params: trainable=591,362, total=125,621,762
 2026-02-17 09:07:22 | [Test] Dev — acc: 0.835, f1: 0.826, loss: 0.357
 2026-02-17 09:10:45 | [Test] Predictions saved to predictions/para-dev-output-lora-all_attn.csv and predictions/para-test-output-lora-all_attn.csv
-2026-02-17 19:14:10 | Args: {'para_train': 'data/quora-train.csv', 'para_dev': 'data/quora-dev.csv', 'para_test': 'data/quora-test-student.csv', 'para_dev_out': 'predictions/para-dev-output-lora-all_attn.csv', 'para_test_out': 'predictions/para-test-output-lora-all_attn.csv', 'seed': 11711, 'epochs': 10, 'use_gpu': True, 'test_only': True, 'batch_size': 8, 'lr': 2e-05, 'model_size': 'gpt2', 'lora_mode': 'all_attn', 'lora_r': 8, 'lora_alpha': None, 'd': 768, 'l': 12, 'num_heads': 12, 'filepath': '10-2e-05-paraphrase-lora-all_attn.pt'}
-2026-02-17 19:19:23 | Args: {'para_train': 'data/quora-train.csv', 'para_dev': 'data/quora-dev.csv', 'para_test': 'data/quora-test-student.csv', 'para_dev_out': 'predictions/para-dev-output-lora-all_attn.csv', 'para_test_out': 'predictions/para-test-output-lora-all_attn.csv', 'seed': 11711, 'epochs': 10, 'use_gpu': True, 'test_only': True, 'batch_size': 8, 'lr': 2e-05, 'model_size': 'gpt2', 'lora_mode': 'all_attn', 'lora_r': 8, 'lora_alpha': None, 'd': 768, 'l': 12, 'num_heads': 12, 'filepath': '10-2e-05-paraphrase-lora-all_attn.pt'}
+
+2026-02-17 19:38:13 | Args: {'para_train': 'data/quora-train.csv', 'para_dev': 'data/quora-dev.csv', 'para_test': 'data/quora-test-student.csv', 'para_dev_out': 'predictions/para-dev-output-lora-all_attn.csv', 'para_test_out': 'predictions/para-test-output-lora-all_attn.csv', 'seed': 11711, 'epochs': 10, 'use_gpu': True, 'test_only': True, 'batch_size': 8, 'lr': 2e-05, 'model_size': 'gpt2-large', 'lora_mode': 'all_attn', 'lora_r': 8, 'lora_alpha': None, 'd': 1280, 'l': 36, 'num_heads': 20, 'filepath': 'gpt2-large-10-2e-05-paraphrase-lora-all_attn.pt'}
+2026-02-17 19:38:18 | [Test] Loaded model from gpt2-large-10-2e-05-paraphrase-lora-all_attn.pt
+2026-02-17 19:38:18 | [Test] Model: gpt2, lora_mode=all_attn, lora_r=8, lr=2e-05, epochs=10, batch_size=32
+2026-02-17 19:38:18 | [Test] Params: trainable=591,362, total=125,621,762
+2026-02-17 19:41:41 | [Test] Dev — acc: 0.848, f1: 0.841, loss: 0.330
+2026-02-17 19:45:01 | [Test] Predictions saved to predictions/para-dev-output-lora-all_attn.csv and predictions/para-test-output-lora-all_attn.csv
+

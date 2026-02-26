@@ -1,0 +1,17 @@
+2026-02-17 20:46:24 | Args: {'para_train': 'data/quora-train.csv', 'para_dev': 'data/quora-dev.csv', 'para_test': 'data/quora-test-student.csv', 'para_dev_out': 'predictions/para-dev-gpt2-10-2e-05-lora-attn_mlp.csv', 'para_test_out': 'predictions/para-test-gpt2-10-2e-05-lora-attn_mlp.csv', 'seed': 11711, 'epochs': 10, 'use_gpu': True, 'test_only': False, 'batch_size': 32, 'lr': 2e-05, 'model_size': 'gpt2', 'lora_mode': 'attn_mlp', 'lora_r': 8, 'lora_alpha': None, 'd': 768, 'l': 12, 'num_heads': 12, 'filepath': 'gpt2-10-2e-05-lora-attn_mlp-paraphrase.pt'}
+2026-02-17 20:46:31 | Model params: trainable=1,328,642, total=126,359,042
+2026-02-17 21:15:43 | Epoch 0: train loss :: 0.521, dev acc :: 0.795, dev f1 :: 0.785, best dev acc :: 0.795 [saved]
+2026-02-17 21:44:53 | Epoch 1: train loss :: 0.414, dev acc :: 0.818, dev f1 :: 0.807, best dev acc :: 0.818 [saved]
+2026-02-17 22:14:01 | Epoch 2: train loss :: 0.382, dev acc :: 0.823, dev f1 :: 0.817, best dev acc :: 0.823 [saved]
+2026-02-17 22:43:13 | Epoch 3: train loss :: 0.365, dev acc :: 0.837, dev f1 :: 0.825, best dev acc :: 0.837 [saved]
+2026-02-17 23:12:25 | Epoch 4: train loss :: 0.352, dev acc :: 0.843, dev f1 :: 0.836, best dev acc :: 0.843 [saved]
+2026-02-17 23:41:29 | Epoch 5: train loss :: 0.342, dev acc :: 0.834, dev f1 :: 0.830, best dev acc :: 0.843
+2026-02-18 00:10:35 | Epoch 6: train loss :: 0.334, dev acc :: 0.852, dev f1 :: 0.846, best dev acc :: 0.852 [saved]
+2026-02-18 00:39:43 | Epoch 7: train loss :: 0.326, dev acc :: 0.854, dev f1 :: 0.848, best dev acc :: 0.854 [saved]
+2026-02-18 01:08:54 | Epoch 8: train loss :: 0.320, dev acc :: 0.860, dev f1 :: 0.851, best dev acc :: 0.860 [saved]
+2026-02-18 01:38:04 | Epoch 9: train loss :: 0.314, dev acc :: 0.861, dev f1 :: 0.852, best dev acc :: 0.861 [saved]
+2026-02-18 01:38:07 | [Test] Loaded model from gpt2-10-2e-05-lora-attn_mlp-paraphrase.pt
+2026-02-18 01:38:07 | [Test] Model: gpt2, lora_mode=attn_mlp, lora_r=8, lr=2e-05, epochs=10, batch_size=32
+2026-02-18 01:38:07 | [Test] Params: trainable=1,328,642, total=126,359,042
+2026-02-18 01:41:46 | [Test] Dev — acc: 0.861, f1: 0.852, loss: 0.307
+2026-02-18 01:45:23 | [Test] Predictions saved to predictions/para-dev-gpt2-10-2e-05-lora-attn_mlp.csv and predictions/para-test-gpt2-10-2e-05-lora-attn_mlp.csv

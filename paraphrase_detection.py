@@ -330,17 +330,12 @@ if __name__ == "__main__":
   args = get_args()
   args = add_arguments(args)  # Add d, l, num_heads before setting filepath
   lora_suffix = f"-lora-{args.lora_mode}" if args.lora_mode != 'none' else ""
-  args.filepath = f'{args.epochs}-{args.lr}-paraphrase{lora_suffix}.pt'  # Save path.
-  # Use distinct prediction outputs per LoRA experiment
-  if args.lora_mode != 'none':
-    def add_lora_suffix(path, suffix):
-      if '.' in path.rsplit('/', 1)[-1]:
-        base, ext = path.rsplit('.', 1)
-        return f"{base}{suffix}.{ext}"
-      return f"{path}{suffix}"
-    args.para_dev_out = add_lora_suffix(args.para_dev_out, lora_suffix)
-    args.para_test_out = add_lora_suffix(args.para_test_out, lora_suffix)
-  logger = setup_logger(args, lora_suffix)
+  exp_tag = f"{args.model_size}-{args.epochs}-{args.lr}{lora_suffix}"
+  args.filepath = f'{exp_tag}-paraphrase.pt'  # Save path.
+  # Prediction outputs include full experiment info
+  args.para_dev_out = f'predictions/para-dev-{exp_tag}.csv'
+  args.para_test_out = f'predictions/para-test-{exp_tag}.csv'
+  logger = setup_logger(args, f'-{exp_tag}')
   logger.info(f"Args: {vars(args)}")
   seed_everything(args.seed)  # Fix the seed for reproducibility.
   if not args.test_only:
