@@ -140,7 +140,9 @@ class SonnetGPT(nn.Module):
         [attention_mask, torch.ones((1, 1), dtype=torch.int64).to(self.get_device())], dim=1
       )
 
-    generated_output = self.tokenizer.decode(token_ids[0].cpu().numpy().tolist())[3:]
+    generated_output = self.tokenizer.decode(
+      token_ids[0].cpu().numpy().tolist(), skip_special_tokens=True
+    )[3:]
     return token_ids, generated_output
 
 
@@ -283,8 +285,12 @@ def generate_submission_sonnets(args):
     sonnet_id = batch[0]
     encoding = model.tokenizer(batch[1], return_tensors='pt', padding=False, truncation=True).to(device)
     output = model.generate(encoding['input_ids'], temperature=args.temperature, top_p=args.top_p)[0][0]
-    decoded_output = model.tokenizer.decode(output)
-    full_sonnet = f'{decoded_output}\n\n'
+    decoded_output = model.tokenizer.decode(output, skip_special_tokens=True)
+    # 内容优先：只截断多余行，不用空行填充
+    lines = decoded_output.splitlines()
+    if len(lines) > 14:
+      lines = lines[:14]
+    full_sonnet = "\n".join(lines) + "\n\n"
     generated_sonnets.append((sonnet_id, full_sonnet))
 
     print(f'{decoded_output}\n\n')
@@ -300,7 +306,7 @@ def get_args():
   parser = argparse.ArgumentParser()
 
   parser.add_argument("--sonnet_path", type=str, default="data/sonnets.txt")
-  parser.add_argument("--held_out_sonnet_path", type=str, default="data/sonnets_held_out.txt")
+  parser.add_argument("--held_out_sonnet_path", type=str, default="data/sonnets_held_out_dev.txt")
   parser.add_argument("--sonnet_out", type=str, default="predictions/generated_sonnets.txt")
 
   parser.add_argument("--seed", type=int, default=11711)

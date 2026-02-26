@@ -1,0 +1,35 @@
+2026-02-26 07:39:37 | Args: {'sonnet_path': 'data/sonnets.txt', 'held_out_sonnet_path': 'data/sonnets_held_out.txt', 'sonnet_out': 'predictions/sonnets-gpt2-10-1e-05.txt', 'seed': 11711, 'epochs': 10, 'use_gpu': True, 'temperature': 1.2, 'top_p': 0.9, 'batch_size': 8, 'lr': 1e-05, 'val_ratio': 0.1, 'patience': 3, 'model_size': 'gpt2', 'lora_mode': 'none', 'lora_r': 8, 'lora_alpha': None, 'd': 768, 'l': 12, 'num_heads': 12, 'filepath': 'gpt2-10-1e-05-sonnet.pt'}
+2026-02-26 07:39:40 | Model params: trainable=125,030,400, total=125,030,400
+2026-02-26 07:39:40 | Data: 118 train sonnets, 13 val sonnets
+2026-02-26 07:39:54 | Epoch 0: train loss :: 4.777, val loss :: 4.494, best val loss :: 4.494 [saved]
+2026-02-26 07:40:14 | Epoch 1: train loss :: 4.427, val loss :: 4.343, best val loss :: 4.343 [saved]
+2026-02-26 07:40:38 | Epoch 2: train loss :: 4.307, val loss :: 4.274, best val loss :: 4.274 [saved]
+2026-02-26 07:41:02 | Epoch 3: train loss :: 4.200, val loss :: 4.223, best val loss :: 4.223 [saved]
+2026-02-26 07:41:29 | Epoch 4: train loss :: 4.108, val loss :: 4.191, best val loss :: 4.191 [saved]
+2026-02-26 07:41:56 | Epoch 5: train loss :: 4.060, val loss :: 4.164, best val loss :: 4.164 [saved]
+2026-02-26 07:42:22 | Epoch 6: train loss :: 4.030, val loss :: 4.144, best val loss :: 4.144 [saved]
+2026-02-26 07:42:52 | Epoch 7: train loss :: 3.965, val loss :: 4.131, best val loss :: 4.131 [saved]
+2026-02-26 07:43:20 | Epoch 8: train loss :: 3.952, val loss :: 4.123, best val loss :: 4.123 [saved]
+2026-02-26 07:43:49 | Epoch 9: train loss :: 3.869, val loss :: 4.112, best val loss :: 4.112 [saved]
+2026-02-26 09:03:31 | Args: {'sonnet_path': 'data/sonnets.txt', 'held_out_sonnet_path': 'data/sonnets_held_out.txt', 'sonnet_out': 'predictions/sonnets-gpt2-10-1e-05.txt', 'seed': 11711, 'epochs': 10, 'use_gpu': False, 'temperature': 1.2, 'top_p': 0.9, 'batch_size': 8, 'lr': 1e-05, 'val_ratio': 0.1, 'patience': 3, 'model_size': 'gpt2', 'lora_mode': 'none', 'lora_r': 8, 'lora_alpha': None, 'd': 768, 'l': 12, 'num_heads': 12, 'filepath': 'gpt2-10-1e-05-sonnet.pt'}
+2026-02-26 09:03:37 | Model params: trainable=125,030,400, total=125,030,400
+2026-02-26 09:03:37 | Data: 118 train sonnets, 13 val sonnets
+2026-02-26 09:14:43 | Args: {'sonnet_path': 'data/sonnets.txt', 'held_out_sonnet_path': 'data/sonnets_held_out.txt', 'sonnet_out': 'predictions/sonnets-gpt2-10-1e-05.txt', 'seed': 11711, 'epochs': 10, 'use_gpu': False, 'temperature': 1.2, 'top_p': 0.9, 'batch_size': 8, 'lr': 1e-05, 'val_ratio': 0.1, 'patience': 3, 'model_size': 'gpt2', 'lora_mode': 'none', 'lora_r': 8, 'lora_alpha': None, 'd': 768, 'l': 12, 'num_heads': 12, 'filepath': 'gpt2-10-1e-05-sonnet.pt'}
+2026-02-26 09:14:46 | Model params: trainable=125,030,400, total=125,030,400
+2026-02-26 09:14:46 | Data: 118 train sonnets, 13 val sonnets
+2026-02-26 09:15:43 | Args: {'sonnet_path': 'data/sonnets.txt', 'held_out_sonnet_path': 'data/sonnets_held_out.txt', 'sonnet_out': 'predictions/sonnets-gpt2-10-1e-05.txt', 'seed': 11711, 'epochs': 10, 'use_gpu': False, 'temperature': 1.2, 'top_p': 0.9, 'batch_size': 32, 'lr': 1e-05, 'val_ratio': 0.1, 'patience': 3, 'model_size': 'gpt2', 'lora_mode': 'none', 'lora_r': 8, 'lora_alpha': None, 'd': 768, 'l': 12, 'num_heads': 12, 'filepath': 'gpt2-10-1e-05-sonnet.pt'}
+2026-02-26 09:15:46 | Model params: trainable=125,030,400, total=125,030,400
+2026-02-26 09:15:46 | Data: 118 train sonnets, 13 val sonnets
+2026-02-26 09:16:50 | Args: {'sonnet_path': 'data/sonnets.txt', 'held_out_sonnet_path': 'data/sonnets_held_out.txt', 'sonnet_out': 'predictions/sonnets-gpt2-10-1e-05.txt', 'seed': 11711, 'epochs': 10, 'use_gpu': True, 'temperature': 1.2, 'top_p': 0.9, 'batch_size': 32, 'lr': 1e-05, 'val_ratio': 0.1, 'patience': 3, 'model_size': 'gpt2', 'lora_mode': 'none', 'lora_r': 8, 'lora_alpha': None, 'd': 768, 'l': 12, 'num_heads': 12, 'filepath': 'gpt2-10-1e-05-sonnet.pt'}
+2026-02-26 09:16:56 | Model params: trainable=125,030,400, total=125,030,400
+2026-02-26 09:16:56 | Data: 118 train sonnets, 13 val sonnets
+2026-02-26 09:17:10 | Epoch 0: train loss :: 5.068, val loss :: 4.666, best val loss :: 4.666 [saved]
+2026-02-26 09:17:37 | Epoch 1: train loss :: 4.565, val loss :: 4.516, best val loss :: 4.516 [saved]
+2026-02-26 09:18:01 | Epoch 2: train loss :: 4.414, val loss :: 4.478, best val loss :: 4.478 [saved]
+2026-02-26 09:18:21 | Epoch 3: train loss :: 4.338, val loss :: 4.424, best val loss :: 4.424 [saved]
+2026-02-26 09:18:41 | Epoch 4: train loss :: 4.284, val loss :: 4.367, best val loss :: 4.367 [saved]
+2026-02-26 09:19:01 | Epoch 5: train loss :: 4.210, val loss :: 4.323, best val loss :: 4.323 [saved]
+2026-02-26 09:19:27 | Epoch 6: train loss :: 4.176, val loss :: 4.289, best val loss :: 4.289 [saved]
+2026-02-26 09:19:53 | Epoch 7: train loss :: 4.103, val loss :: 4.261, best val loss :: 4.261 [saved]
+2026-02-26 09:20:19 | Epoch 8: train loss :: 4.111, val loss :: 4.241, best val loss :: 4.241 [saved]
+2026-02-26 09:20:42 | Epoch 9: train loss :: 4.100, val loss :: 4.223, best val loss :: 4.223 [saved]

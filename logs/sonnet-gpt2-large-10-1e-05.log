@@ -1,0 +1,10 @@
+2026-02-26 07:51:45 | Args: {'sonnet_path': 'data/sonnets.txt', 'held_out_sonnet_path': 'data/sonnets_held_out.txt', 'sonnet_out': 'predictions/sonnets-gpt2-large-10-1e-05.txt', 'seed': 11711, 'epochs': 10, 'use_gpu': True, 'temperature': 1.2, 'top_p': 0.9, 'batch_size': 8, 'lr': 1e-05, 'val_ratio': 0.1, 'patience': 3, 'model_size': 'gpt2-large', 'lora_mode': 'none', 'lora_r': 8, 'lora_alpha': None, 'd': 1280, 'l': 36, 'num_heads': 20, 'filepath': 'gpt2-large-10-1e-05-sonnet.pt'}
+2026-02-26 07:52:09 | Model params: trainable=775,669,760, total=775,669,760
+2026-02-26 07:52:09 | Data: 118 train sonnets, 13 val sonnets
+2026-02-26 07:53:11 | Epoch 0: train loss :: 4.083, val loss :: 3.868, best val loss :: 3.868 [saved]
+2026-02-26 07:55:12 | Epoch 1: train loss :: 3.654, val loss :: 3.776, best val loss :: 3.776 [saved]
+2026-02-26 07:57:11 | Epoch 2: train loss :: 3.477, val loss :: 3.755, best val loss :: 3.755 [saved]
+2026-02-26 07:58:12 | Epoch 3: train loss :: 3.329, val loss :: 3.757, best val loss :: 3.755
+2026-02-26 07:59:13 | Epoch 4: train loss :: 3.165, val loss :: 3.771, best val loss :: 3.755
+2026-02-26 08:00:13 | Epoch 5: train loss :: 3.016, val loss :: 3.810, best val loss :: 3.755
+2026-02-26 08:01:01 | Early stopping at epoch 5 (no improvement for 3 epochs).

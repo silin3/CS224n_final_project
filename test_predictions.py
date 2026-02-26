@@ -14,6 +14,11 @@ SONNET_FILES = [
   "generated_sonnets-lora-all_attn.txt",
   "generated_sonnets-lora-attn_mlp.txt",
   "generated_sonnets-lora-qv.txt",
+  "sonnets-gpt2-10-1e-05_v3.txt",
+  "sonnets-gpt2-10-1e-05_v4.txt",
+  "sonnets-gpt2-10-1e-05_v5.txt",
+  "sonnets-gpt2-10-1e-05_v6.txt",
+
 ]
 
 PARA_DEV_FILES = [

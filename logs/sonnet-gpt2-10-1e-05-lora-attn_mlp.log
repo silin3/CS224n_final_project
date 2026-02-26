@@ -1,0 +1,5 @@
+2026-02-26 17:25:00 | Args: {'sonnet_path': 'data/sonnets.txt', 'held_out_sonnet_path': 'data/sonnets_held_out_dev.txt', 'sonnet_out': 'predictions/sonnets-gpt2-10-1e-05-lora-attn_mlp.txt', 'seed': 11711, 'epochs': 10, 'use_gpu': True, 'temperature': 1.2, 'top_p': 0.9, 'batch_size': 16, 'lr': 1e-05, 'val_ratio': 0.1, 'patience': 3, 'model_size': 'gpt2', 'lora_mode': 'attn_mlp', 'lora_r': 8, 'lora_alpha': None, 'd': 768, 'l': 12, 'num_heads': 12, 'filepath': 'gpt2-10-1e-05-lora-attn_mlp-sonnet.pt'}
+2026-02-26 17:25:03 | Model params: trainable=1,327,104, total=126,357,504
+2026-02-26 17:25:03 | Data: 118 train sonnets, 13 val sonnets
+2026-02-26 17:25:07 | Epoch 0: train loss :: 5.241, val loss :: 5.172, best val loss :: 5.172 [saved]
+2026-02-26 17:25:40 | Epoch 1: train loss :: 5.235, val loss :: 5.164, best val loss :: 5.164 [saved]

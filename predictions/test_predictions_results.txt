@@ -1,8 +1,15 @@
+Pred dir: /home/hehaixing/CS224n_final_project/predictions
+Data dir: /home/hehaixing/CS224n_final_project/data
+
 === Sonnet DEV CHRF ===
-generated_sonnets.txt: CHRF=21.618
+generated_sonnets.txt: CHRF=40.908
 generated_sonnets-lora-all_attn.txt: CHRF=27.316
 generated_sonnets-lora-attn_mlp.txt: CHRF=27.491
 generated_sonnets-lora-qv.txt: CHRF=25.581
+sonnets-gpt2-10-1e-05_v3.txt: CHRF=9.393
+sonnets-gpt2-10-1e-05_v4.txt: CHRF=12.427
+sonnets-gpt2-10-1e-05_v5.txt: CHRF=23.944
+sonnets-gpt2-10-1e-05_v6.txt: CHRF=22.905
 
 === Paraphrase DEV (acc / macro-F1) ===
 para-dev-gpt2-10-1e-05.csv: acc=0.8958 f1=0.8882 n=40429 missing=0 extra=0
