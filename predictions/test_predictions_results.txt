@@ -1,0 +1,19 @@
+=== Sonnet DEV CHRF ===
+generated_sonnets.txt: CHRF=21.618
+generated_sonnets-lora-all_attn.txt: CHRF=27.316
+generated_sonnets-lora-attn_mlp.txt: CHRF=27.491
+generated_sonnets-lora-qv.txt: CHRF=25.581
+
+=== Paraphrase DEV (acc / macro-F1) ===
+para-dev-gpt2-10-1e-05.csv: acc=0.8958 f1=0.8882 n=40429 missing=0 extra=0
+para-dev-gpt2-10-1e-05-lora-qv.csv: acc=0.8223 f1=0.8107 n=40429 missing=0 extra=0
+para-dev-gpt2-10-1e-05-lora-attn_mlp.csv: acc=0.8473 f1=0.8374 n=40429 missing=0 extra=0
+para-dev-gpt2-10-2e-05-lora-attn_mlp.csv: acc=0.8612 f1=0.8517 n=40429 missing=0 extra=0
+para-dev-gpt2-large-10-2e-05-lora-all_attn.csv: acc=0.8481 f1=0.8410 n=40429 missing=0 extra=0
+
+=== Paraphrase TEST (coverage check) ===
+para-test-gpt2-10-1e-05.csv: rows=80858 missing=0 extra=0
+para-test-gpt2-10-1e-05-lora-qv.csv: rows=80858 missing=0 extra=0
+para-test-gpt2-10-1e-05-lora-attn_mlp.csv: rows=80858 missing=0 extra=0
+para-test-gpt2-10-2e-05-lora-attn_mlp.csv: rows=80858 missing=0 extra=0
+para-test-gpt2-large-10-2e-05-lora-all_attn.csv: rows=80858 missing=0 extra=0
