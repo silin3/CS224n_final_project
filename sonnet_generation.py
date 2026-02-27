@@ -1,45 +1,40 @@
-'''
-Sonnet generation starter code.
+"""
+Sonnet generation (CS224N DFP) — full script with:
 
-Running:
-  `python sonnet_generation.py --use_gpu`
+✓ Top-p sampling + temperature
+✓ Generate N candidates + rerank by avg log-prob (model self-score)
+✓ no_repeat_ngram_size (prevents degenerate repetition)
+✓ Proper padding-masked LM loss
+✓ Optional early stopping on validation LM loss (tiny val split by default)
+✓ Saves best checkpoint and uses it for submission generation
 
-trains your SonnetGPT model and writes the required submission files.
-'''
+Usage examples at bottom.
+"""
 
 import argparse
-import logging
+import glob
 import os
 import random
 import torch
-
 import numpy as np
 import torch.nn.functional as F
 
 from torch import nn
-from torch.utils.data import DataLoader, Subset
+from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
 from transformers import GPT2Tokenizer
-from einops import rearrange
 
-from datasets import (
-  SonnetsDataset,
-)
+from datasets import SonnetsDataset
 from models.gpt2 import GPT2Model
 from modules.lora import apply_lora_to_gpt2
-
 from optimizer import AdamW
-
-# LoRA experiment modes:
-# - none: full fine-tuning (default)
-# - qv: LoRA-QV, apply LoRA to attention query and value projections only
-# - all_attn: LoRA-AllAttn, apply LoRA to all attention projections (Q, K, V, O)
-# - attn_mlp: LoRA-Attn+MLP, apply LoRA to attention projections and MLP layers
 
 TQDM_DISABLE = False
 
 
-# Fix the random seed.
+# -------------------------
+# Repro
+# -------------------------
 def seed_everything(seed=11711):
   random.seed(seed)
   np.random.seed(seed)
@@ -50,339 +45,505 @@ def seed_everything(seed=11711):
   torch.backends.cudnn.deterministic = True
 
 
+# -------------------------
+# Early stopping
+# -------------------------
+class EarlyStopping:
+  """Early stop on validation loss."""
+  def __init__(self, patience=6, min_delta=0.0):
+    self.patience = patience
+    self.min_delta = min_delta
+    self.best = float("inf")
+    self.num_bad = 0
+    self.should_stop = False
+
+  def step(self, val_loss):
+    if val_loss < self.best - self.min_delta:
+      self.best = val_loss
+      self.num_bad = 0
+      return True
+    self.num_bad += 1
+    if self.num_bad >= self.patience:
+      self.should_stop = True
+    return False
+
+
+# -------------------------
+# no-repeat ngram helper (batch=1)
+# -------------------------
+def calc_banned_tokens_no_repeat_ngram(token_ids: torch.Tensor, n: int):
+  """
+  token_ids: [1, T] (batch=1)
+  returns: set of token ids that would create a repeated n-gram if generated next
+  """
+  if n is None or n <= 0:
+    return set()
+  seq = token_ids[0].tolist()
+  if len(seq) < n - 1:
+    return set()
+
+  # prefix (n-1)-gram -> set(next tokens)
+  prefix_to_next = {}
+  for i in range(len(seq) - n + 1):
+    prefix = tuple(seq[i:i + n - 1])
+    nxt = seq[i + n - 1]
+    prefix_to_next.setdefault(prefix, set()).add(nxt)
+
+  cur_prefix = tuple(seq[-(n - 1):])
+  return prefix_to_next.get(cur_prefix, set())
+
+
+# -------------------------
+# Model
+# -------------------------
 class SonnetGPT(nn.Module):
-  """Your GPT-2 Model designed for sonnet generation."""
+  """GPT-2 language model for sonnet continuation."""
 
   def __init__(self, args):
     super().__init__()
-    self.gpt = GPT2Model.from_pretrained(model=args.model_size, d=args.d, l=args.l, num_heads=args.num_heads)
-    self.tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+    self.gpt = GPT2Model.from_pretrained(
+      model=args.model_size, d=args.d, l=args.l, num_heads=args.num_heads
+    )
+    self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
     self.tokenizer.pad_token = self.tokenizer.eos_token
 
-    lora_mode = getattr(args, 'lora_mode', 'none')
-    if lora_mode != 'none':
+    lora_mode = getattr(args, "lora_mode", "none")
+    if lora_mode != "none":
       apply_lora_to_gpt2(
         self.gpt,
         lora_mode=lora_mode,
-        lora_r=getattr(args, 'lora_r', 8),
-        lora_alpha=getattr(args, 'lora_alpha', None),
+        lora_r=getattr(args, "lora_r", 8),
+        lora_alpha=getattr(args, "lora_alpha", None),
       )
-      # Freeze base model, only train LoRA params
-      for param in self.gpt.parameters():
-        param.requires_grad = False
-      for name, param in self.gpt.named_parameters():
-        if 'lora_' in name:
-          param.requires_grad = True
+      # freeze base
+      for p in self.gpt.parameters():
+        p.requires_grad = False
+      # unfreeze lora params
+      for name, p in self.gpt.named_parameters():
+        if "lora_" in name:
+          p.requires_grad = True
     else:
-      # Full fine-tuning
-      for param in self.gpt.parameters():
-        param.requires_grad = True
+      for p in self.gpt.parameters():
+        p.requires_grad = True
 
   def forward(self, input_ids, attention_mask):
-    """
-    This is similar to the forward for ParaphraseGPT, but we now want to produce a logit for each token in our sequence;
-    not just the last token! This will allow our model to learn the natural language distribution that composes sonnets,
-    not just the distribution over next tokens for the last token!
-    """
-    ### YOUR CODE HERE
-    # raise NotImplementedError
     gpt_out = self.gpt(input_ids, attention_mask)
-    sequence_output = gpt_out['last_hidden_state']  # [batch_size, seq_len, hidden_size]
-    logits = self.gpt.hidden_state_to_token(sequence_output)  # [batch_size, seq_len, vocab_size]
+    h = gpt_out["last_hidden_state"]           # [B, T, H]
+    logits = self.gpt.hidden_state_to_token(h) # [B, T, V]
     return logits
 
-
   def get_device(self):
-    for param in self.gpt.parameters():
-      return param.device
+    for p in self.gpt.parameters():
+      return p.device
 
   @torch.no_grad()
-  def generate(self, encoding, temperature=0.7, top_p=0.9, max_length=128):
+  def generate_top_p_once(
+    self,
+    input_ids,
+    attention_mask=None,
+    temperature=1.0,
+    top_p=0.9,
+    max_new_tokens=220,
+    min_new_tokens=120,
+    no_repeat_ngram_size=3,
+    stop_on_eos=True,
+  ):
     """
-    Generates an original sonnet using top-p sampling and softmax temperature.
-
-    TODO: this is probably not ideal. You can look at hugging face's model.generate(...) function for inspiration.
-    In particular, generating multiple sequences and choosing the best with beam search is one avenue. Top_k is another;
-    there are many.
+    Single top-p sample + returns avg log-prob over generated tokens (self-score).
+    batch=1.
     """
-    token_ids = encoding.to(self.get_device())
-    attention_mask = torch.ones(token_ids.shape, dtype=torch.int64).to(self.get_device())
+    device = self.get_device()
+    token_ids = input_ids.to(device)
 
+    if attention_mask is None:
+      attention_mask = torch.ones_like(token_ids, dtype=torch.long, device=device)
+    else:
+      attention_mask = attention_mask.to(device)
 
-    for _ in range(max_length):
-      # Forward pass to get logits
-      logits_sequence = self.forward(token_ids, attention_mask)
-      logits_last_token = logits_sequence[:, -1, :] / temperature  # Apply temperature scaling
+    eos = self.tokenizer.eos_token_id
+    prompt_len = token_ids.size(1)
 
-      # Convert logits to probabilities
-      probs = torch.nn.functional.softmax(logits_last_token, dim=-1)
+    sum_logp = 0.0
+    gen_tokens = 0
 
-      # Top-p (nucleus) sampling
-      sorted_probs, sorted_indices = torch.sort(probs, descending=True)
-      cumulative_probs = torch.cumsum(sorted_probs, dim=-1)
-      top_p_mask = cumulative_probs <= top_p
-      top_p_mask[..., 1:] = top_p_mask[..., :-1].clone()  # Shift mask right for proper thresholding
-      top_p_mask[..., 0] = True  # Always include the highest probability token
-      filtered_probs = sorted_probs * top_p_mask  # Zero out unlikely tokens
-      filtered_probs /= filtered_probs.sum(dim=-1, keepdim=True)  # Normalize probabilities
+    for _ in range(max_new_tokens):
+      logits = self.forward(token_ids, attention_mask)[:, -1, :]  # [1, V]
+      logits = logits / max(temperature, 1e-8)
 
-      # Sample from filtered distribution
-      sampled_index = torch.multinomial(filtered_probs, 1)
-      sampled_token = sorted_indices.gather(dim=-1, index=sampled_index)
+      # forbid EOS too early (length control)
+      cur_gen_len = token_ids.size(1) - prompt_len
+      if cur_gen_len < min_new_tokens:
+        logits[:, eos] = -1e9
 
-      # Stop if end-of-sequence token is reached
-      if sampled_token.item() == self.tokenizer.eos_token_id:
+      # no-repeat ngram constraint
+      banned = calc_banned_tokens_no_repeat_ngram(token_ids, no_repeat_ngram_size)
+      if banned:
+        logits[:, list(banned)] = -1e9
+
+      # sample from top-p
+      probs = torch.softmax(logits, dim=-1)               # [1, V]
+      sorted_probs, sorted_idx = torch.sort(probs, descending=True)
+      cum = torch.cumsum(sorted_probs, dim=-1)
+      keep = cum <= top_p
+      keep[..., 0] = True
+      filtered = sorted_probs * keep
+      filtered = filtered / filtered.sum(dim=-1, keepdim=True)
+
+      sampled_pos = torch.multinomial(filtered, 1)        # [1,1] position in sorted
+      next_tok = sorted_idx.gather(-1, sampled_pos)       # [1,1] token id
+
+      # accumulate log-prob of chosen token
+      log_probs = torch.log_softmax(logits, dim=-1)
+      sum_logp += log_probs[0, next_tok.item()].item()
+      gen_tokens += 1
+
+      if stop_on_eos and next_tok.item() == eos:
         break
 
-      # Append sampled token
-      token_ids = torch.cat([token_ids, sampled_token], dim=1)
+      token_ids = torch.cat([token_ids, next_tok], dim=1)
       attention_mask = torch.cat(
-        [attention_mask, torch.ones((1, 1), dtype=torch.int64).to(self.get_device())], dim=1
+        [attention_mask, torch.ones((1, 1), dtype=torch.long, device=device)], dim=1
       )
 
-    generated_output = self.tokenizer.decode(
-      token_ids[0].cpu().numpy().tolist(), skip_special_tokens=True
-    )[3:]
-    return token_ids, generated_output
+    avg_logp = sum_logp / max(gen_tokens, 1)
+    decoded = self.tokenizer.decode(token_ids[0].tolist())
+    return token_ids, decoded, avg_logp
+
+  @torch.no_grad()
+  def generate_top_p_rerank(
+    self,
+    input_ids,
+    attention_mask=None,
+    num_candidates=5,
+    temperature=1.0,
+    top_p=0.9,
+    max_new_tokens=220,
+    min_new_tokens=120,
+    no_repeat_ngram_size=3,
+  ):
+    """
+    Generate N candidates with top-p sampling, rerank by avg log-prob, return best.
+    """
+    best_ids, best_text, best_score = None, None, -1e18
+    for _ in range(num_candidates):
+      ids, text, score = self.generate_top_p_once(
+        input_ids,
+        attention_mask=attention_mask,
+        temperature=temperature,
+        top_p=top_p,
+        max_new_tokens=max_new_tokens,
+        min_new_tokens=min_new_tokens,
+        no_repeat_ngram_size=no_repeat_ngram_size,
+      )
+      if score > best_score:
+        best_ids, best_text, best_score = ids, text, score
+    return best_ids, best_text
+
+
+# -------------------------
+# Utils
+# -------------------------
+def add_arguments(args):
+  if args.model_size == "gpt2":
+    args.d, args.l, args.num_heads = 768, 12, 12
+  elif args.model_size == "gpt2-medium":
+    args.d, args.l, args.num_heads = 1024, 24, 16
+  elif args.model_size == "gpt2-large":
+    args.d, args.l, args.num_heads = 1280, 36, 20
+  else:
+    raise Exception(f"{args.model_size} is not supported.")
+  return args
+
+
+def auto_version(base_tag):
+  v = 1
+  while True:
+    tag = f"{base_tag}_v{v}"
+    if glob.glob(f"*_{tag}-sonnet.pt") or glob.glob(f"{tag}-sonnet.pt"):
+      v += 1
+    else:
+      return v, tag
 
 
 def save_model(model, optimizer, args, filepath):
-  save_info = {
-    'model': model.state_dict(),
-    'optim': optimizer.state_dict(),
-    'args': args,
-    'system_rng': random.getstate(),
-    'numpy_rng': np.random.get_state(),
-    'torch_rng': torch.random.get_rng_state(),
+  lora_config = {
+    "lora_mode": getattr(args, "lora_mode", "none"),
+    "lora_r": getattr(args, "lora_r", 8),
+    "lora_alpha": getattr(args, "lora_alpha", None),
   }
-
+  save_info = {
+    "model": model.state_dict(),
+    "optim": optimizer.state_dict(),
+    "args": args,
+    "lora_config": lora_config,
+    "version": getattr(args, "version", "v1"),
+    "system_rng": random.getstate(),
+    "numpy_rng": np.random.get_state(),
+    "torch_rng": torch.random.get_rng_state(),
+  }
   torch.save(save_info, filepath)
-  print(f"save the model to {filepath}")
-
-
-def train(args):
-  """Train GPT-2 for sonnet generation."""
-  logger = logging.getLogger('sonnet')
-  device = torch.device('cuda') if args.use_gpu else torch.device('cpu')
-  # Create the data and its corresponding datasets and dataloader.
-  sonnet_dataset = SonnetsDataset(args.sonnet_path)
-  # Split into train/val for early stopping
-  n_total = len(sonnet_dataset)
-  n_val = max(1, int(n_total * args.val_ratio))
-  n_train = n_total - n_val
-  indices = torch.randperm(n_total).tolist()
-  train_indices, val_indices = indices[:n_train], indices[n_train:]
-  train_dataset = Subset(sonnet_dataset, train_indices)
-  val_dataset = Subset(sonnet_dataset, val_indices)
-  sonnet_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=args.batch_size,
-                                 collate_fn=sonnet_dataset.collate_fn)
-  val_dataloader = DataLoader(val_dataset, shuffle=False, batch_size=args.batch_size,
-                              collate_fn=sonnet_dataset.collate_fn)
-
-  # Create the held-out dataset: these only have the first 3 lines. Your job is to fill in the rest!
-  held_out_sonnet_dataset = SonnetsDataset(args.held_out_sonnet_path)
-
-  args = add_arguments(args)
-  model = SonnetGPT(args)
-  model = model.to(device)
-
-  n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
-  n_total_params = sum(p.numel() for p in model.parameters())
-  logger.info(f"Model params: trainable={n_trainable:,}, total={n_total_params:,}")
-  logger.info(f"Data: {n_train} train sonnets, {n_val} val sonnets")
-
-  lr = args.lr
-  optimizer = AdamW(model.parameters(), lr=lr)
-
-  best_val_loss = float('inf')
-  patience_counter = 0
-
-  # Run for the specified number of epochs.
-  for epoch in range(args.epochs):
-    model.train()
-    train_loss = 0
-    num_batches = 0
-
-    for batch in tqdm(sonnet_dataloader, desc=f'train-{epoch}', disable=TQDM_DISABLE):
-      # Get the input and move it to the gpu (I do not recommend training this model on CPU).
-      b_ids, b_mask = batch['token_ids'], batch['attention_mask']
-      b_ids = b_ids.to(device)
-      b_mask = b_mask.to(device)
-
-      # Compute the loss, gradients, and update the model's parameters.
-      optimizer.zero_grad()
-      logits = model(b_ids, b_mask)
-      logits = rearrange(logits[:, :-1].contiguous(), 'b t d -> (b t) d')  # Ignore the last prediction in the sequence.
-      labels = b_ids[:, 1:].contiguous().flatten()  # Ignore the first token to compose the labels.
-      loss = F.cross_entropy(logits, labels, reduction='mean')
-      loss.backward()
-      optimizer.step()
-
-      train_loss += loss.item()
-      num_batches += 1
-
-    train_loss = train_loss / num_batches
-
-    # Compute validation loss for early stopping
-    model.eval()
-    val_loss = 0
-    val_batches = 0
-    with torch.no_grad():
-      for batch in val_dataloader:
-        b_ids, b_mask = batch['token_ids'], batch['attention_mask']
-        b_ids = b_ids.to(device)
-        b_mask = b_mask.to(device)
-        logits = model(b_ids, b_mask)
-        logits = rearrange(logits[:, :-1].contiguous(), 'b t d -> (b t) d')
-        labels = b_ids[:, 1:].contiguous().flatten()
-        val_loss += F.cross_entropy(logits, labels, reduction='mean').item()
-        val_batches += 1
-    val_loss = val_loss / val_batches if val_batches > 0 else float('inf')
-
-    saved_flag = ""
-    if val_loss < best_val_loss:
-      best_val_loss = val_loss
-      patience_counter = 0
-      save_model(model, optimizer, args, args.filepath)
-      saved_flag = " [saved]"
-    else:
-      patience_counter += 1
-
-    msg = f"Epoch {epoch}: train loss :: {train_loss :.3f}, val loss :: {val_loss :.3f}, best val loss :: {best_val_loss :.3f}{saved_flag}"
-    print(msg)
-    logger.info(msg)
-
-    print('Generating several output sonnets...')
-    for batch in held_out_sonnet_dataset:
-      encoding = model.tokenizer(batch[1], return_tensors='pt', padding=True, truncation=True).to(device)
-      output = model.generate(encoding['input_ids'], temperature=args.temperature, top_p=args.top_p)
-      print(f'{batch[1]}{output[1]}\n\n')
-
-    # Early stopping: stop when val loss doesn't improve for patience epochs
-    if patience_counter >= args.patience:
-      msg = f"Early stopping at epoch {epoch} (no improvement for {args.patience} epochs)."
-      print(msg)
-      logger.info(msg)
-      break
+  print(f"Saved checkpoint to {filepath}")
 
 
 @torch.no_grad()
-def generate_submission_sonnets(args):
-  device = torch.device('cuda') if args.use_gpu else torch.device('cpu')
-  print(f"Loading model from {args.filepath}")
-  saved = torch.load(args.filepath, weights_only=False)
+def compute_lm_loss(model, dataloader, device):
+  """Padding-masked next-token LM loss."""
+  model.eval()
+  total_loss = 0.0
+  total_tokens = 0.0
 
-  model = SonnetGPT(saved['args'])
-  model.load_state_dict(saved['model'])
+  for batch in tqdm(dataloader, desc="eval", disable=TQDM_DISABLE):
+    b_ids = batch["token_ids"].to(device)
+    b_mask = batch["attention_mask"].to(device)
+
+    logits = model(b_ids, b_mask)                 # [B, T, V]
+    shift_logits = logits[:, :-1, :].contiguous()
+    shift_labels = b_ids[:, 1:].contiguous()
+    shift_mask = b_mask[:, 1:].contiguous().float()
+
+    per_tok = F.cross_entropy(
+      shift_logits.view(-1, shift_logits.size(-1)),
+      shift_labels.view(-1),
+      reduction="none",
+    ).view_as(shift_mask)
+
+    total_loss += (per_tok * shift_mask).sum().item()
+    total_tokens += shift_mask.sum().item()
+
+  return total_loss / max(total_tokens, 1.0)
+
+
+# -------------------------
+# Train
+# -------------------------
+def train(args):
+  device = torch.device("cuda") if args.use_gpu else torch.device("cpu")
+
+  full_dataset = SonnetsDataset(args.sonnet_path)
+  n_total = len(full_dataset)
+
+  # Allow val_ratio=0.0 (no early stop)
+  if args.val_ratio <= 0.0:
+    train_set = full_dataset
+    val_set = None
+  else:
+    n_val = max(1, int(args.val_ratio * n_total))
+    n_train = n_total - n_val
+    train_set, val_set = random_split(
+      full_dataset,
+      [n_train, n_val],
+      generator=torch.Generator().manual_seed(args.seed),
+    )
+
+  train_loader = DataLoader(
+    train_set,
+    shuffle=True,
+    batch_size=args.batch_size,
+    collate_fn=full_dataset.collate_fn,
+  )
+
+  val_loader = None
+  if val_set is not None:
+    val_loader = DataLoader(
+      val_set,
+      shuffle=False,
+      batch_size=args.batch_size,
+      collate_fn=full_dataset.collate_fn,
+    )
+
+  args = add_arguments(args)
+  model = SonnetGPT(args).to(device)
+
+  # Only optimize trainable params (important for LoRA)
+  trainable_params = [p for p in model.parameters() if p.requires_grad]
+  optimizer = AdamW(trainable_params, lr=args.lr)
+
+  early = EarlyStopping(patience=args.early_stop_patience, min_delta=args.early_stop_min_delta)
+
+  best_path = f"best_{args.filepath}"
+  best_val = float("inf")
+
+  for epoch in range(args.epochs):
+    model.train()
+    running = 0.0
+    nb = 0
+
+    for batch in tqdm(train_loader, desc=f"train-{epoch}", disable=TQDM_DISABLE):
+      b_ids = batch["token_ids"].to(device)
+      b_mask = batch["attention_mask"].to(device)
+
+      optimizer.zero_grad(set_to_none=True)
+      logits = model(b_ids, b_mask)
+
+      # padding-masked LM loss
+      shift_logits = logits[:, :-1, :].contiguous()
+      shift_labels = b_ids[:, 1:].contiguous()
+      shift_mask = b_mask[:, 1:].contiguous().float()
+
+      per_tok = F.cross_entropy(
+        shift_logits.view(-1, shift_logits.size(-1)),
+        shift_labels.view(-1),
+        reduction="none",
+      ).view_as(shift_mask)
+
+      loss = (per_tok * shift_mask).sum() / shift_mask.sum().clamp(min=1.0)
+      loss.backward()
+      torch.nn.utils.clip_grad_norm_(trainable_params, args.grad_clip)
+      optimizer.step()
+
+      running += loss.item()
+      nb += 1
+
+    train_loss = running / max(nb, 1)
+
+    if val_loader is None:
+      print(f"Epoch {epoch}: train_loss={train_loss:.4f}")
+      # no val: just keep overwriting best with last
+      save_model(model, optimizer, args, best_path)
+      continue
+
+    val_loss = compute_lm_loss(model, val_loader, device)
+    print(f"Epoch {epoch}: train_loss={train_loss:.4f}  val_loss={val_loss:.4f}")
+
+    if val_loss < best_val - args.early_stop_min_delta:
+      best_val = val_loss
+      save_model(model, optimizer, args, best_path)
+      early.best = best_val
+      early.num_bad = 0
+    else:
+      early.step(val_loss)
+      if early.should_stop:
+        print(f"Early stopping at epoch {epoch}. Best val_loss={best_val:.4f}")
+        break
+
+  return best_path
+
+
+# -------------------------
+# Generate submission
+# -------------------------
+@torch.no_grad()
+def generate_submission_sonnets(args, checkpoint_path):
+  device = torch.device("cuda") if args.use_gpu else torch.device("cpu")
+  saved = torch.load(checkpoint_path, weights_only=False)
+
+  model = SonnetGPT(saved["args"])
+  model.load_state_dict(saved["model"])
   model = model.to(device)
   model.eval()
 
-  # Create the held-out dataset: these only have the first 3 lines. Your job is to fill in the rest!
-  held_out_sonnet_dataset = SonnetsDataset(args.held_out_sonnet_path)
+  held_out = SonnetsDataset(args.held_out_sonnet_path)
+  os.makedirs(os.path.dirname(args.sonnet_out), exist_ok=True)
 
-  generated_sonnets = []
-  for batch in held_out_sonnet_dataset:
-    sonnet_id = batch[0]
-    encoding = model.tokenizer(batch[1], return_tensors='pt', padding=False, truncation=True).to(device)
-    output = model.generate(encoding['input_ids'], temperature=args.temperature, top_p=args.top_p)[0][0]
-    decoded_output = model.tokenizer.decode(output, skip_special_tokens=True)
-    # 内容优先：只截断多余行，不用空行填充
-    lines = decoded_output.splitlines()
-    if len(lines) > 14:
-      lines = lines[:14]
-    full_sonnet = "\n".join(lines) + "\n\n"
-    generated_sonnets.append((sonnet_id, full_sonnet))
+  generated = []
+  for batch in held_out:
+    sid, prompt = batch[0], batch[1]
+    enc = model.tokenizer(prompt, return_tensors="pt", padding=False, truncation=True).to(device)
 
-    print(f'{decoded_output}\n\n')
+    _, decoded = model.generate_top_p_rerank(
+      enc["input_ids"],
+      attention_mask=enc.get("attention_mask", None),
+      num_candidates=args.num_candidates,
+      temperature=args.temperature,
+      top_p=args.top_p,
+      max_new_tokens=args.max_new_tokens,
+      min_new_tokens=args.min_new_tokens,
+      no_repeat_ngram_size=args.no_repeat_ngram_size,
+    )
 
-  with open(args.sonnet_out, "w+") as f:
-    f.write(f"--Generated Sonnets-- \n\n")
-    for sonnet in generated_sonnets:
-      f.write(f"\n{sonnet[0]}\n")
-      f.write(sonnet[1])
+    generated.append((sid, decoded + "\n\n"))
+    if args.print_submission:
+      print(decoded)
+      print()
+
+  with open(args.sonnet_out, "w+", encoding="utf-8") as f:
+    f.write("--Generated Sonnets-- \n\n")
+    for sid, text in generated:
+      f.write(f"\n{sid}\n")
+      f.write(text)
+
+  print(f"Wrote predictions to {args.sonnet_out}")
 
 
+# -------------------------
+# Args
+# -------------------------
 def get_args():
-  parser = argparse.ArgumentParser()
+  p = argparse.ArgumentParser()
 
-  parser.add_argument("--sonnet_path", type=str, default="data/sonnets.txt")
-  parser.add_argument("--held_out_sonnet_path", type=str, default="data/sonnets_held_out_dev.txt")
-  parser.add_argument("--sonnet_out", type=str, default="predictions/generated_sonnets.txt")
+  p.add_argument("--sonnet_path", type=str, default="data/sonnets.txt")
+  p.add_argument("--held_out_sonnet_path", type=str, default="data/sonnets_held_out_dev.txt")
+  p.add_argument("--sonnet_out", type=str, default="predictions/generated_sonnets.txt")
 
-  parser.add_argument("--seed", type=int, default=11711)
-  parser.add_argument("--epochs", type=int, default=10)
-  parser.add_argument("--use_gpu", action='store_true')
+  p.add_argument("--seed", type=int, default=11711)
+  p.add_argument("--epochs", type=int, default=10)
+  p.add_argument("--use_gpu", action="store_true")
 
-  # Generation parameters.
-  parser.add_argument("--temperature", type=float, help="softmax temperature.", default=1.2)
-  parser.add_argument("--top_p", type=float, help="Cumulative probability distribution for nucleus sampling.",
-                      default=0.9)
+  # Train
+  p.add_argument("--batch_size", type=int, default=8)
+  p.add_argument("--lr", type=float, default=1e-5)
+  p.add_argument("--grad_clip", type=float, default=1.0)
 
-  parser.add_argument("--batch_size", help='The training batch size.', type=int, default=8)
-  parser.add_argument("--lr", type=float, help="learning rate", default=1e-5)
-  parser.add_argument("--val_ratio", type=float, default=0.1, help="Fraction of data for validation (early stopping)")
-  parser.add_argument("--patience", type=int, default=3, help="Early stopping patience (stop if no val improvement for N epochs)")
-  parser.add_argument("--model_size", type=str, help="The model size as specified on hugging face.",
-                      choices=['gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl'], default='gpt2')
+  # Val + early stop (tiny split; set 0 to disable)
+  p.add_argument("--val_ratio", type=float, default=0.02)
+  p.add_argument("--early_stop_patience", type=int, default=6)
+  p.add_argument("--early_stop_min_delta", type=float, default=0.0)
 
-  # LoRA options
-  parser.add_argument("--lora_mode", type=str, default='none',
-                      choices=['none', 'qv', 'all_attn', 'attn_mlp'],
-                      help="LoRA experiment: none=full ft, qv=Q+V only, all_attn=Q+K+V+O, attn_mlp=all attn + MLP")
-  parser.add_argument("--lora_r", type=int, default=8, help="LoRA rank")
-  parser.add_argument("--lora_alpha", type=float, default=None, help="LoRA alpha (default: lora_r)")
+  # Model size
+  p.add_argument("--model_size", type=str,
+                 choices=["gpt2", "gpt2-medium", "gpt2-large", "gpt2-xl"],
+                 default="gpt2")
 
-  args = parser.parse_args()
-  return args
+  # LoRA
+  p.add_argument("--lora_mode", type=str, default="none",
+                 choices=["none", "qv", "all_attn", "attn_mlp"])
+  p.add_argument("--lora_r", type=int, default=8)
+  p.add_argument("--lora_alpha", type=float, default=None)
+
+  # Generation + rerank
+  p.add_argument("--temperature", type=float, default=1.0)
+  p.add_argument("--top_p", type=float, default=0.95)
+  p.add_argument("--num_candidates", type=int, default=5)
+  p.add_argument("--no_repeat_ngram_size", type=int, default=3)
+  p.add_argument("--min_new_tokens", type=int, default=120)
+  p.add_argument("--max_new_tokens", type=int, default=220)
+
+  p.add_argument("--print_submission", action="store_true")
+  return p.parse_args()
 
 
-def add_arguments(args):
-  """Add arguments that are deterministic on model size."""
-  if args.model_size == 'gpt2':
-    args.d = 768
-    args.l = 12
-    args.num_heads = 12
-  elif args.model_size == 'gpt2-medium':
-    args.d = 1024
-    args.l = 24
-    args.num_heads = 16
-  elif args.model_size == 'gpt2-large':
-    args.d = 1280
-    args.l = 36
-    args.num_heads = 20
+def main():
+  args = get_args()
+
+  if args.lora_alpha is None:
+    args.lora_alpha = float(args.lora_r)
+
+  if args.lora_mode != "none":
+    lora_suffix = f"-lora-{args.lora_mode}-r{args.lora_r}-a{int(args.lora_alpha)}"
   else:
-    raise Exception(f'{args.model_size} is not supported.')
-  return args
+    lora_suffix = ""
 
+  base_tag = f"{args.model_size}-{args.epochs}-{args.lr}{lora_suffix}"
+  version, exp_tag = auto_version(base_tag)
+  args.version = f"v{version}"
 
-def setup_logger(args, lora_suffix):
-  """Set up file + console logger for training."""
-  os.makedirs('logs', exist_ok=True)
-  log_file = f'logs/sonnet{lora_suffix}.log'
-  logger = logging.getLogger('sonnet')
-  logger.setLevel(logging.INFO)
-  logger.handlers.clear()
-  fh = logging.FileHandler(log_file, mode='a')
-  fh.setLevel(logging.INFO)
-  ch = logging.StreamHandler()
-  ch.setLevel(logging.INFO)
-  fmt = logging.Formatter('%(asctime)s | %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-  fh.setFormatter(fmt)
-  ch.setFormatter(fmt)
-  logger.addHandler(fh)
-  logger.addHandler(ch)
-  return logger
+  args.filepath = f"{exp_tag}-sonnet.pt"
+  args.sonnet_out = f"predictions/sonnets-{exp_tag}.txt"
+
+  print(f"Experiment: {exp_tag}")
+  print(f"  Best checkpoint: best_{args.filepath}")
+  print(f"  Predictions: {args.sonnet_out}")
+  if args.lora_mode != "none":
+    print(f"  LoRA: mode={args.lora_mode}, r={args.lora_r}, alpha={args.lora_alpha}")
+  print(f"  Train: lr={args.lr}, batch={args.batch_size}, val_ratio={args.val_ratio}, patience={args.early_stop_patience}")
+  print(f"  Gen: temp={args.temperature}, top_p={args.top_p}, N={args.num_candidates}, ngram={args.no_repeat_ngram_size}, "
+        f"min_new={args.min_new_tokens}, max_new={args.max_new_tokens}")
+
+  seed_everything(args.seed)
+
+  best_ckpt = train(args)
+  generate_submission_sonnets(args, best_ckpt)
 
 
 if __name__ == "__main__":
-  args = get_args()
-  args = add_arguments(args)  # Add d, l, num_heads before model creation
-  lora_suffix = f"-lora-{args.lora_mode}" if args.lora_mode != 'none' else ""
-  exp_tag = f"{args.model_size}-{args.epochs}-{args.lr}{lora_suffix}"
-  args.filepath = f'{exp_tag}-sonnet.pt'  # Save path.
-  args.sonnet_out = f'predictions/sonnets-{exp_tag}.txt'
-  logger = setup_logger(args, f'-{exp_tag}')
-  logger.info(f"Args: {vars(args)}")
-  seed_everything(args.seed)  # Fix the seed for reproducibility.
-  train(args)
-  generate_submission_sonnets(args)
+  main()

@@ -11,13 +11,19 @@ OUT_PATH = os.path.join(PRED_DIR, "test_predictions_results.txt")
 
 SONNET_FILES = [
   "generated_sonnets.txt",
-  "generated_sonnets-lora-all_attn.txt",
-  "generated_sonnets-lora-attn_mlp.txt",
-  "generated_sonnets-lora-qv.txt",
-  "sonnets-gpt2-10-1e-05_v3.txt",
-  "sonnets-gpt2-10-1e-05_v4.txt",
-  "sonnets-gpt2-10-1e-05_v5.txt",
-  "sonnets-gpt2-10-1e-05_v6.txt",
+  "sonnets-gpt2-10-1e-05-lora-attn_mlp.txt",
+  "sonnets-gpt2-10-1e-05_v7.txt",
+  "sonnets-gpt2-10-1e-05-lora-attn_mlp.txt",
+  "sonnets-gpt2-10-0.0001-lora-qv-r8-a8_v1.txt",
+  "sonnets-gpt2-10-0.0001-lora-all_attn-r8-a8_v1.txt",
+  "sonnets-gpt2-10-5e-05-lora-attn_mlp-r8-a8_v1.txt",
+  "sonnets-gpt2-10-1e-05_v1.txt",
+  "sonnets-gpt2-10-1e-05-lora-attn_mlp-r8-a8_v1.txt",
+  "sonnets-gpt2-10-1e-05_v2.txt",
+  "sonnets-gpt2-10-1e-05-lora-attn_mlp-r8-a8_v1.txt",
+  "sonnets-gpt2-10-1e-05_v1.txt",
+  "sonnets-gpt2-10-1e-05-lora-attn_mlp-r8-a8_v2.txt",
+
 
 ]
 

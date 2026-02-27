@@ -3,3 +3,11 @@
 2026-02-26 17:25:03 | Data: 118 train sonnets, 13 val sonnets
 2026-02-26 17:25:07 | Epoch 0: train loss :: 5.241, val loss :: 5.172, best val loss :: 5.172 [saved]
 2026-02-26 17:25:40 | Epoch 1: train loss :: 5.235, val loss :: 5.164, best val loss :: 5.164 [saved]
+2026-02-26 17:26:10 | Epoch 2: train loss :: 5.236, val loss :: 5.155, best val loss :: 5.155 [saved]
+2026-02-26 17:26:45 | Epoch 3: train loss :: 5.198, val loss :: 5.145, best val loss :: 5.145 [saved]
+2026-02-26 17:27:18 | Epoch 4: train loss :: 5.183, val loss :: 5.133, best val loss :: 5.133 [saved]
+2026-02-26 17:27:52 | Epoch 5: train loss :: 5.192, val loss :: 5.119, best val loss :: 5.119 [saved]
+2026-02-26 17:28:27 | Epoch 6: train loss :: 5.173, val loss :: 5.103, best val loss :: 5.103 [saved]
+2026-02-26 17:29:01 | Epoch 7: train loss :: 5.169, val loss :: 5.083, best val loss :: 5.083 [saved]
+2026-02-26 17:29:36 | Epoch 8: train loss :: 5.146, val loss :: 5.061, best val loss :: 5.061 [saved]
+2026-02-26 17:30:08 | Epoch 9: train loss :: 5.114, val loss :: 5.037, best val loss :: 5.037 [saved]
