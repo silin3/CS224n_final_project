@@ -15,6 +15,8 @@ sonnets-gpt2-10-1e-05_v2.txt: CHRF=30.275
 sonnets-gpt2-10-1e-05-lora-attn_mlp-r8-a8_v1.txt: CHRF=30.671
 sonnets-gpt2-10-1e-05_v1.txt: CHRF=43.537
 sonnets-gpt2-10-1e-05-lora-attn_mlp-r8-a8_v2.txt: CHRF=42.037
+sonnets-gpt2-10-1e-05-lora-all_attn-r8-a8_v1.txt: CHRF=41.677
+sonnets-gpt2-10-1e-05-lora-qv-r8-a8_v1.txt: CHRF=42.063
 
 === Paraphrase DEV (acc / macro-F1) ===
 para-dev-gpt2-10-1e-05.csv: acc=0.8958 f1=0.8882 n=40429 missing=0 extra=0

@@ -23,6 +23,8 @@ SONNET_FILES = [
   "sonnets-gpt2-10-1e-05-lora-attn_mlp-r8-a8_v1.txt",
   "sonnets-gpt2-10-1e-05_v1.txt",
   "sonnets-gpt2-10-1e-05-lora-attn_mlp-r8-a8_v2.txt",
+  "sonnets-gpt2-10-1e-05-lora-all_attn-r8-a8_v1.txt",
+  "sonnets-gpt2-10-1e-05-lora-qv-r8-a8_v1.txt",
 
 
 ]
