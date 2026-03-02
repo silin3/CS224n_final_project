@@ -27,7 +27,9 @@ from tqdm import tqdm
 from datasets import (
   ParaphraseDetectionDataset,
   ParaphraseDetectionTestDataset,
-  load_paraphrase_data
+  load_paraphrase_data,
+  load_paws_data,
+  load_mixed_paraphrase_data
 )
 from evaluation import model_eval_paraphrase, model_test_paraphrase
 from models.gpt2 import GPT2Model
@@ -126,6 +128,18 @@ def train(args):
   # Create the data and its corresponding datasets and dataloader.
   para_train_data = load_paraphrase_data(args.para_train)
   para_dev_data = load_paraphrase_data(args.para_dev)
+
+  if args.use_paws:
+    paws_train_data = load_paws_data(args.paws_train, split='train')
+    para_train_data = load_mixed_paraphrase_data(
+      quora_data=para_train_data,
+      paws_data=paws_train_data,
+      paws_mix_ratio=args.paws_mix_ratio,
+      seed=args.paws_seed,
+      max_paws_samples=args.paws_max_samples,
+    )
+    logger.info(f"Using PAWS for training: path={args.paws_train}, mix_ratio={args.paws_mix_ratio}, "
+                f"max_samples={args.paws_max_samples}, seed={args.paws_seed}")
 
   para_train_data = ParaphraseDetectionDataset(para_train_data, args)
   para_dev_data = ParaphraseDetectionDataset(para_dev_data, args)
@@ -263,6 +277,8 @@ def get_args():
   parser.add_argument("--para_train", type=str, default="data/quora-train.csv")
   parser.add_argument("--para_dev", type=str, default="data/quora-dev.csv")
   parser.add_argument("--para_test", type=str, default="data/quora-test-student.csv")
+  parser.add_argument("--paws_train", type=str, default="data/paws-train.csv",
+                      help="PAWS train file")
   parser.add_argument("--para_dev_out", type=str, default="predictions/para-dev-output.csv")
   parser.add_argument("--para_test_out", type=str, default="predictions/para-test-output.csv")
 
@@ -270,6 +286,12 @@ def get_args():
   parser.add_argument("--epochs", type=int, default=10)
   parser.add_argument("--use_gpu", action='store_true')
   parser.add_argument("--test_only", action='store_true', help="Skip training, only run test on saved model")
+  parser.add_argument("--use_paws", action='store_true', help="Enable PAWS data mixing for training")
+  parser.add_argument("--paws_mix_ratio", type=float, default=0.3,
+                      help="PAWS samples added relative to Quora train size")
+  parser.add_argument("--paws_max_samples", type=int, default=None,
+                      help="Optional cap on number of PAWS samples mixed into train")
+  parser.add_argument("--paws_seed", type=int, default=11711, help="Random seed for PAWS sampling")
 
   parser.add_argument("--batch_size", help='sst: 64, cfimdb: 8 can fit a 12GB GPU', type=int, default=8)
   parser.add_argument("--lr", type=float, help="learning rate", default=1e-5)
@@ -330,7 +352,13 @@ if __name__ == "__main__":
   args = get_args()
   args = add_arguments(args)  # Add d, l, num_heads before setting filepath
   lora_suffix = f"-lora-{args.lora_mode}" if args.lora_mode != 'none' else ""
-  exp_tag = f"{args.model_size}-{args.epochs}-{args.lr}{lora_suffix}"
+  if args.use_paws:
+    paws_suffix = f"-paws-r{args.paws_mix_ratio}"
+    if args.paws_max_samples is not None:
+      paws_suffix += f"-max{args.paws_max_samples}"
+  else:
+    paws_suffix = "-nopaws"
+  exp_tag = f"{args.model_size}-{args.epochs}-{args.lr}{lora_suffix}{paws_suffix}"
   args.filepath = f'{exp_tag}-paraphrase.pt'  # Save path.
   # Prediction outputs include full experiment info
   args.para_dev_out = f'predictions/para-dev-{exp_tag}.csv'
