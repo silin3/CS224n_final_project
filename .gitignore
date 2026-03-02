@@ -7,4 +7,5 @@
 out/
 venv
 cs224n_dfp/
-requirements.txt
+logs/
+.DS_Store
