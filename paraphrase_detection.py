@@ -56,6 +56,14 @@ def seed_everything(seed=11711):
   torch.backends.cudnn.deterministic = True
 
 
+def _to_namespace(saved_args):
+  if isinstance(saved_args, argparse.Namespace):
+    return saved_args
+  if isinstance(saved_args, dict):
+    return argparse.Namespace(**saved_args)
+  raise TypeError(f"Unsupported saved args type: {type(saved_args)}")
+
+
 class ParaphraseGPT(nn.Module):
   """Your GPT-2 Model designed for paraphrase detection."""
 
@@ -107,15 +115,19 @@ class ParaphraseGPT(nn.Module):
     return logits
 
 
-def save_model(model, optimizer, args, filepath):
+def save_model(model, optimizer, args, filepath, epoch=None, best_dev_acc=None):
   save_info = {
     'model': model.state_dict(),
     'optim': optimizer.state_dict(),
-    'args': args,
+    'args': vars(args),
     'system_rng': random.getstate(),
     'numpy_rng': np.random.get_state(),
     'torch_rng': torch.random.get_rng_state(),
   }
+  if epoch is not None:
+    save_info['epoch'] = int(epoch)
+  if best_dev_acc is not None:
+    save_info['best_dev_acc'] = float(best_dev_acc)
 
   torch.save(save_info, filepath)
   print(f"save the model to {filepath}")
@@ -160,9 +172,28 @@ def train(args):
   lr = args.lr
   optimizer = AdamW(model.parameters(), lr=lr, weight_decay=0.)
   best_dev_acc = 0
+  start_epoch = 0
+
+  if args.resume_from is not None:
+    resume_path = args.resume_from
+    logger.info(f"Resuming training from {resume_path}")
+    saved = torch.load(resume_path, weights_only=False)
+    model.load_state_dict(saved['model'])
+    if 'optim' in saved:
+      optimizer.load_state_dict(saved['optim'])
+    best_dev_acc = float(saved.get('best_dev_acc', 0.0))
+    start_epoch = int(saved.get('epoch', -1)) + 1
+    if args.resume_epoch is not None:
+      start_epoch = args.resume_epoch
+      logger.info(f"Using manual resume_epoch override: {start_epoch}")
+    logger.info(f"Resume state: start_epoch={start_epoch}, best_dev_acc={best_dev_acc:.3f}")
+
+  if start_epoch >= args.epochs:
+    logger.info(f"Skip training: start_epoch={start_epoch} >= epochs={args.epochs}")
+    return
 
   # Run for the specified number of epochs.
-  for epoch in range(args.epochs):
+  for epoch in range(start_epoch, args.epochs):
     model.train()
     train_loss = 0
     num_batches = 0
@@ -191,7 +222,7 @@ def train(args):
     saved_flag = ""
     if dev_acc > best_dev_acc:
       best_dev_acc = dev_acc
-      save_model(model, optimizer, args, args.filepath)
+      save_model(model, optimizer, args, args.filepath, epoch=epoch, best_dev_acc=best_dev_acc)
       saved_flag = " [saved]"
 
     msg = f"Epoch {epoch}: train loss :: {train_loss :.3f}, dev acc :: {dev_acc :.3f}, dev f1 :: {dev_f1 :.3f}, best dev acc :: {best_dev_acc :.3f}{saved_flag}"
@@ -204,19 +235,26 @@ def test(args):
   """Evaluate your model on the dev and test datasets; save the predictions to disk."""
   logger = logging.getLogger('paraphrase')
   device = torch.device('cuda') if args.use_gpu else torch.device('cpu')
-  saved = torch.load(args.filepath)
+  ckpt_path = args.filepath
+  if not os.path.exists(ckpt_path):
+    if args.resume_from is not None and os.path.exists(args.resume_from):
+      ckpt_path = args.resume_from
+      logger.info(f"[Test] {args.filepath} not found, falling back to resume checkpoint: {ckpt_path}")
+    else:
+      raise FileNotFoundError(f"Checkpoint not found: {args.filepath}")
+  saved = torch.load(ckpt_path, weights_only=False)
 
-  saved_args = saved['args']
+  saved_args = _to_namespace(saved['args'])
   model = ParaphraseGPT(saved_args)
   model.load_state_dict(saved['model'])
   model = model.to(device)
   model.eval()
-  print(f"Loaded model to test from {args.filepath}")
+  print(f"Loaded model to test from {ckpt_path}")
 
   # Log model info
   n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
   n_total = sum(p.numel() for p in model.parameters())
-  logger.info(f"[Test] Loaded model from {args.filepath}")
+  logger.info(f"[Test] Loaded model from {ckpt_path}")
   logger.info(f"[Test] Model: {saved_args.model_size}, lora_mode={getattr(saved_args, 'lora_mode', 'none')}, "
               f"lora_r={getattr(saved_args, 'lora_r', 'N/A')}, lr={saved_args.lr}, epochs={saved_args.epochs}, "
               f"batch_size={getattr(saved_args, 'batch_size', 'N/A')}")
@@ -284,6 +322,10 @@ def get_args():
 
   parser.add_argument("--seed", type=int, default=11711)
   parser.add_argument("--epochs", type=int, default=10)
+  parser.add_argument("--resume_from", type=str, default=None,
+                      help="Path to checkpoint to resume from")
+  parser.add_argument("--resume_epoch", type=int, default=None,
+                      help="Manual override for resume start epoch (useful for old checkpoints)")
   parser.add_argument("--use_gpu", action='store_true')
   parser.add_argument("--test_only", action='store_true', help="Skip training, only run test on saved model")
   parser.add_argument("--use_paws", action='store_true', help="Enable PAWS data mixing for training")
