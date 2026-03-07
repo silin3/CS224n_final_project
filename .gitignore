@@ -7,5 +7,4 @@
 out/
 venv
 cs224n_dfp/
-logs/
 .DS_Store
