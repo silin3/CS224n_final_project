@@ -64,6 +64,34 @@ def _to_namespace(saved_args):
   raise TypeError(f"Unsupported saved args type: {type(saved_args)}")
 
 
+def _extract_gpt_state_dict(saved):
+  if isinstance(saved, dict):
+    if 'gpt_model' in saved and isinstance(saved['gpt_model'], dict):
+      return saved['gpt_model']
+    if 'model' in saved and isinstance(saved['model'], dict):
+      model_sd = saved['model']
+      if any(k.startswith('gpt.') for k in model_sd.keys()):
+        return {k[len('gpt.'):]: v for k, v in model_sd.items() if k.startswith('gpt.')}
+      return model_sd
+    if any(k.startswith('gpt.') for k in saved.keys()):
+      return {k[len('gpt.'):]: v for k, v in saved.items() if k.startswith('gpt.')}
+  raise ValueError("Unable to extract GPT state dict from checkpoint")
+
+
+def load_init_gpt_backbone(model, ckpt_path, logger):
+  saved = torch.load(ckpt_path, weights_only=False)
+  gpt_state_dict = _extract_gpt_state_dict(saved)
+  missing, unexpected = model.gpt.load_state_dict(gpt_state_dict, strict=False)
+  logger.info(
+    f"Initialized GPT backbone from {ckpt_path}; "
+    f"missing_keys={len(missing)}, unexpected_keys={len(unexpected)}"
+  )
+  if len(missing) > 0:
+    logger.info(f"Missing key sample: {missing[:5]}")
+  if len(unexpected) > 0:
+    logger.info(f"Unexpected key sample: {unexpected[:5]}")
+
+
 class ParaphraseGPT(nn.Module):
   """Your GPT-2 Model designed for paraphrase detection."""
 
@@ -163,6 +191,12 @@ def train(args):
 
   args = add_arguments(args)
   model = ParaphraseGPT(args)
+
+  if args.resume_from is not None and args.init_gpt_from is not None:
+    logger.info("Both --resume_from and --init_gpt_from were set; ignoring --init_gpt_from.")
+  elif args.init_gpt_from is not None:
+    load_init_gpt_backbone(model, args.init_gpt_from, logger)
+
   model = model.to(device)
 
   n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -326,6 +360,8 @@ def get_args():
                       help="Path to checkpoint to resume from")
   parser.add_argument("--resume_epoch", type=int, default=None,
                       help="Manual override for resume start epoch (useful for old checkpoints)")
+  parser.add_argument("--init_gpt_from", type=str, default=None,
+                      help="Initialize GPT backbone from continued pretraining checkpoint")
   parser.add_argument("--use_gpu", action='store_true')
   parser.add_argument("--test_only", action='store_true', help="Skip training, only run test on saved model")
   parser.add_argument("--use_paws", action='store_true', help="Enable PAWS data mixing for training")
@@ -400,7 +436,8 @@ if __name__ == "__main__":
       paws_suffix += f"-max{args.paws_max_samples}"
   else:
     paws_suffix = "-nopaws"
-  exp_tag = f"{args.model_size}-{args.epochs}-{args.lr}{lora_suffix}{paws_suffix}"
+  cpt_suffix = "-cptinit" if args.init_gpt_from is not None else ""
+  exp_tag = f"{args.model_size}-{args.epochs}-{args.lr}{lora_suffix}{paws_suffix}{cpt_suffix}"
   args.filepath = f'{exp_tag}-paraphrase.pt'  # Save path.
   # Prediction outputs include full experiment info
   args.para_dev_out = f'predictions/para-dev-{exp_tag}.csv'
