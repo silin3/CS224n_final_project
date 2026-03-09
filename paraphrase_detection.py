@@ -9,7 +9,7 @@ Consider:
 Running:
   `python paraphrase_detection.py --use_gpu`
 trains and evaluates your ParaphraseGPT model and writes the required submission files.
-'''
+
 
 import argparse
 import logging
@@ -340,4 +340,390 @@ if __name__ == "__main__":
   seed_everything(args.seed)  # Fix the seed for reproducibility.
   if not args.test_only:
     train(args)
+  test(args)
+'''
+
+'''
+Paraphrase detection for GPT starter code.
+
+Consider:
+ - ParaphraseGPT: Your implementation of the GPT-2 classification model.
+ - train: Training procedure for ParaphraseGPT on the Quora paraphrase detection dataset.
+ - test: Test procedure. This function generates the required files for your submission.
+
+Running examples:
+  Full fine-tuning:
+    python paraphrase_detection.py --use_gpu --peft_type none
+
+  LoRA:
+    python paraphrase_detection.py --use_gpu --peft_type lora --lora_mode qv --lora_r 8
+
+  QLoRA:
+    python paraphrase_detection.py --use_gpu --peft_type qlora --lora_mode qv --lora_r 8 --qlora_bits 4
+'''
+
+import argparse
+import random
+import torch
+
+import numpy as np
+import torch.nn.functional as F
+
+from torch import nn
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+
+from datasets import (
+  ParaphraseDetectionDataset,
+  ParaphraseDetectionTestDataset,
+  load_paraphrase_data
+)
+from evaluation import model_eval_paraphrase, model_test_paraphrase
+from models.gpt2 import GPT2Model
+from modules.lora import apply_lora_to_gpt2
+from modules.qlora import apply_qlora_to_gpt2
+
+from optimizer import AdamW
+
+
+TQDM_DISABLE = False
+
+
+# Fix the random seed.
+def seed_everything(seed=11711):
+  random.seed(seed)
+  np.random.seed(seed)
+  torch.manual_seed(seed)
+  torch.cuda.manual_seed(seed)
+  torch.cuda.manual_seed_all(seed)
+  torch.backends.cudnn.benchmark = False
+  torch.backends.cudnn.deterministic = True
+
+
+class ParaphraseGPT(nn.Module):
+  """GPT-2 model for paraphrase detection."""
+
+  def __init__(self, args):
+    super().__init__()
+    self.gpt = GPT2Model.from_pretrained(
+      model=args.model_size,
+      d=args.d,
+      l=args.l,
+      num_heads=args.num_heads
+    )
+
+    # Optional classification head.
+    # Current forward uses GPT token logits for "no"/"yes" directly,
+    # to stay consistent with the original starter logic.
+    self.paraphrase_detection_head = nn.Linear(args.d, 2)
+
+    peft_type = getattr(args, 'peft_type', 'none')
+    lora_mode = getattr(args, 'lora_mode', 'none')
+
+    if peft_type == 'lora' and lora_mode != 'none':
+      apply_lora_to_gpt2(
+        self.gpt,
+        lora_mode=lora_mode,
+        lora_r=getattr(args, 'lora_r', 8),
+        lora_alpha=getattr(args, 'lora_alpha', None),
+      )
+
+      # Freeze GPT base model, train only LoRA params.
+      for param in self.gpt.parameters():
+        param.requires_grad = False
+      for name, param in self.gpt.named_parameters():
+        if 'lora_' in name:
+          param.requires_grad = True
+
+      # Keep head trainable if you want to experiment with it later.
+      for param in self.paraphrase_detection_head.parameters():
+        param.requires_grad = True
+
+    elif peft_type == 'qlora' and lora_mode != 'none':
+      apply_qlora_to_gpt2(
+        self.gpt,
+        qlora_mode=lora_mode,
+        qlora_r=getattr(args, 'lora_r', 8),
+        qlora_alpha=getattr(args, 'lora_alpha', None),
+        n_bits=getattr(args, 'qlora_bits', 4),
+        group_size=getattr(args, 'qlora_group_size', 64),
+        quantize_bias=getattr(args, 'qlora_quantize_bias', False),
+      )
+
+      # Freeze GPT base model, train only LoRA params.
+      for param in self.gpt.parameters():
+        param.requires_grad = False
+      for name, param in self.gpt.named_parameters():
+        if 'lora_' in name:
+          param.requires_grad = True
+
+      # Keep head trainable if you want to experiment with it later.
+      for param in self.paraphrase_detection_head.parameters():
+        param.requires_grad = True
+
+    else:
+      # Full fine-tuning
+      for param in self.gpt.parameters():
+        param.requires_grad = True
+      for param in self.paraphrase_detection_head.parameters():
+        param.requires_grad = True
+
+  def forward(self, input_ids, attention_mask):
+    """
+    We structure the input as:
+
+      'Is "{s1}" a paraphrase of "{s2}"? Answer "yes" or "no": '
+
+    We predict the next token at the end:
+      - "no"  -> token id 3919
+      - "yes" -> token id 8505
+
+    Returns:
+      logits of shape [batch_size, 2], corresponding to [no, yes]
+    """
+    gpt_out = self.gpt(input_ids, attention_mask)
+    last_token = gpt_out['last_token']  # [batch_size, hidden_size]
+
+    # Use the LM head directly and keep only the logits for "no" and "yes".
+    logits = self.gpt.hidden_state_to_token(last_token)[:, [3919, 8505]]
+    return logits
+
+
+def save_model(model, optimizer, args, filepath):
+  save_info = {
+    'model': model.state_dict(),
+    'optim': optimizer.state_dict(),
+    'args': args,
+    'system_rng': random.getstate(),
+    'numpy_rng': np.random.get_state(),
+    'torch_rng': torch.random.get_rng_state(),
+  }
+
+  torch.save(save_info, filepath)
+  print(f"save the model to {filepath}")
+
+
+def count_trainable_parameters(model):
+  total = 0
+  trainable = 0
+  for p in model.parameters():
+    n = p.numel()
+    total += n
+    if p.requires_grad:
+      trainable += n
+  print(f"trainable params: {trainable:,} / {total:,} ({100.0 * trainable / total:.4f}%)")
+
+
+def train(args):
+  """Train GPT-2 for paraphrase detection on the Quora dataset."""
+  device = torch.device('cuda') if args.use_gpu else torch.device('cpu')
+
+  para_train_data = load_paraphrase_data(args.para_train)
+  para_dev_data = load_paraphrase_data(args.para_dev)
+
+  para_train_data = ParaphraseDetectionDataset(para_train_data, args)
+  para_dev_data = ParaphraseDetectionDataset(para_dev_data, args)
+
+  para_train_dataloader = DataLoader(
+    para_train_data,
+    shuffle=True,
+    batch_size=args.batch_size,
+    collate_fn=para_train_data.collate_fn
+  )
+  para_dev_dataloader = DataLoader(
+    para_dev_data,
+    shuffle=False,
+    batch_size=args.batch_size,
+    collate_fn=para_dev_data.collate_fn
+  )
+
+  args = add_arguments(args)
+  model = ParaphraseGPT(args)
+  model = model.to(device)
+
+  count_trainable_parameters(model)
+
+  lr = args.lr
+  optimizer = AdamW(model.parameters(), lr=lr, weight_decay=0.)
+  best_dev_acc = 0
+
+  for epoch in range(args.epochs):
+    model.train()
+    train_loss = 0.0
+    num_batches = 0
+
+    for batch in tqdm(para_train_dataloader, desc=f'train-{epoch}', disable=TQDM_DISABLE):
+      b_ids = batch['token_ids'].to(device)
+      b_mask = batch['attention_mask'].to(device)
+      labels = batch['labels'].flatten().to(device)
+
+      optimizer.zero_grad()
+      logits = model(b_ids, b_mask)
+      loss = F.cross_entropy(logits, labels, reduction='mean')
+      loss.backward()
+      optimizer.step()
+
+      train_loss += loss.item()
+      num_batches += 1
+
+    train_loss = train_loss / max(num_batches, 1)
+
+    dev_acc, dev_f1, *_ = model_eval_paraphrase(para_dev_dataloader, model, device)
+
+    if dev_acc > best_dev_acc:
+      best_dev_acc = dev_acc
+      save_model(model, optimizer, args, args.filepath)
+
+    print(f"Epoch {epoch}: train loss :: {train_loss:.3f}, dev acc :: {dev_acc:.3f}, dev f1 :: {dev_f1:.3f}")
+
+
+@torch.no_grad()
+def test(args):
+  """Evaluate model on the dev and test datasets; save predictions to disk."""
+  device = torch.device('cuda') if args.use_gpu else torch.device('cpu')
+  saved = torch.load(args.filepath, map_location=device)
+
+  model = ParaphraseGPT(saved['args'])
+  model.load_state_dict(saved['model'])
+  model = model.to(device)
+  model.eval()
+  print(f"Loaded model to test from {args.filepath}")
+
+  para_dev_data = load_paraphrase_data(args.para_dev)
+  para_test_data = load_paraphrase_data(args.para_test, split='test')
+
+  para_dev_data = ParaphraseDetectionDataset(para_dev_data, args)
+  para_test_data = ParaphraseDetectionTestDataset(para_test_data, args)
+
+  para_dev_dataloader = DataLoader(
+    para_dev_data,
+    shuffle=False,
+    batch_size=args.batch_size,
+    collate_fn=para_dev_data.collate_fn
+  )
+  para_test_dataloader = DataLoader(
+    para_test_data,
+    shuffle=True,
+    batch_size=args.batch_size,
+    collate_fn=para_test_data.collate_fn
+  )
+
+  dev_para_acc, _, dev_para_y_pred, _, dev_para_sent_ids = model_eval_paraphrase(
+    para_dev_dataloader, model, device
+  )
+  print(f"dev paraphrase acc :: {dev_para_acc:.3f}")
+
+  test_para_y_pred, test_para_sent_ids = model_test_paraphrase(
+    para_test_dataloader, model, device
+  )
+
+  # Autograder expected BPE token ids
+  TOKEN_ID_NO, TOKEN_ID_YES = 3919, 8505
+  dev_para_out = [TOKEN_ID_YES if p == 1 else TOKEN_ID_NO for p in dev_para_y_pred]
+  test_para_out = [TOKEN_ID_YES if p == 1 else TOKEN_ID_NO for p in test_para_y_pred]
+
+  with open(args.para_dev_out, "w+") as f:
+    f.write("id \t Predicted_Is_Paraphrase \n")
+    for sent_id, pred in zip(dev_para_sent_ids, dev_para_out):
+      f.write(f"{sent_id}, {pred} \n")
+
+  with open(args.para_test_out, "w+") as f:
+    f.write("id \t Predicted_Is_Paraphrase \n")
+    for sent_id, pred in zip(test_para_sent_ids, test_para_out):
+      f.write(f"{sent_id}, {pred} \n")
+
+
+def get_args():
+  parser = argparse.ArgumentParser()
+
+  parser.add_argument("--para_train", type=str, default="data/quora-train.csv")
+  parser.add_argument("--para_dev", type=str, default="data/quora-dev.csv")
+  parser.add_argument("--para_test", type=str, default="data/quora-test-student.csv")
+  parser.add_argument("--para_dev_out", type=str, default="predictions/para-dev-output.csv")
+  parser.add_argument("--para_test_out", type=str, default="predictions/para-test-output.csv")
+
+  parser.add_argument("--seed", type=int, default=11711)
+  parser.add_argument("--epochs", type=int, default=10)
+  parser.add_argument("--use_gpu", action='store_true')
+
+  parser.add_argument("--batch_size", type=int, default=8,
+                      help='sst: 64, cfimdb: 8 can fit a 12GB GPU')
+  parser.add_argument("--lr", type=float, default=1e-5, help="learning rate")
+  parser.add_argument("--model_size", type=str,
+                      choices=['gpt2', 'gpt2-medium', 'gpt2-large'],
+                      default='gpt2',
+                      help="The model size as specified on hugging face. DO NOT use the xl model.")
+
+  # PEFT type
+  parser.add_argument("--peft_type", type=str, default='none',
+                      choices=['none', 'lora', 'qlora'],
+                      help="PEFT type: none=full fine-tuning, lora=LoRA, qlora=QLoRA")
+
+  # Adapter placement
+  parser.add_argument("--lora_mode", type=str, default='none',
+                      choices=['none', 'qv', 'all_attn', 'attn_mlp'],
+                      help="Adapter placement: none=full ft, qv=Q+V only, all_attn=Q+K+V+O, attn_mlp=all attn + MLP")
+
+  # Shared LoRA/QLoRA adapter hyperparameters
+  parser.add_argument("--lora_r", type=int, default=8, help="LoRA/QLoRA rank")
+  parser.add_argument("--lora_alpha", type=float, default=None, help="LoRA/QLoRA alpha (default: r)")
+
+  # QLoRA-specific hyperparameters
+  parser.add_argument("--qlora_bits", type=int, default=4, help="QLoRA quantization bit width")
+  parser.add_argument("--qlora_group_size", type=int, default=64,
+                      help="QLoRA group-wise quantization group size")
+  parser.add_argument("--qlora_quantize_bias", action='store_true',
+                      help="Whether to also fake-quantize bias in QLoRA")
+
+  args = parser.parse_args()
+  return args
+
+
+def add_arguments(args):
+  """Add arguments that are deterministic on model size."""
+  if args.model_size == 'gpt2':
+    args.d = 768
+    args.l = 12
+    args.num_heads = 12
+  elif args.model_size == 'gpt2-medium':
+    args.d = 1024
+    args.l = 24
+    args.num_heads = 16
+  elif args.model_size == 'gpt2-large':
+    args.d = 1280
+    args.l = 36
+    args.num_heads = 20
+  else:
+    raise Exception(f'{args.model_size} is not supported.')
+  return args
+
+
+def add_suffix_to_path(path, suffix):
+  if not suffix:
+    return path
+  if '.' in path.rsplit('/', 1)[-1]:
+    base, ext = path.rsplit('.', 1)
+    return f"{base}{suffix}.{ext}"
+  return f"{path}{suffix}"
+
+
+if __name__ == "__main__":
+  args = get_args()
+  args = add_arguments(args)
+
+  # Build file suffix
+  if args.peft_type == 'none' or args.lora_mode == 'none':
+    peft_suffix = ""
+  else:
+    peft_suffix = f"-{args.lr}-{args.peft_type}-{args.lora_mode}"
+
+  args.filepath = f"{args.epochs}-{args.lr}-paraphrase{peft_suffix}.pt"
+
+  # Use distinct prediction outputs per PEFT experiment
+  if args.peft_type != 'none' and args.lora_mode != 'none':
+    args.para_dev_out = add_suffix_to_path(args.para_dev_out, peft_suffix)
+    args.para_test_out = add_suffix_to_path(args.para_test_out, peft_suffix)
+
+  seed_everything(args.seed)
+  train(args)
   test(args)
