@@ -474,6 +474,8 @@ def get_args():
   p.add_argument("--sonnet_path", type=str, default="data/sonnets.txt")
   p.add_argument("--held_out_sonnet_path", type=str, default="data/sonnets_held_out_dev.txt")
   p.add_argument("--sonnet_out", type=str, default="predictions/generated_sonnets.txt")
+  p.add_argument("--run_name", type=str, default=None,
+                 help="Optional experiment label used in checkpoint and prediction filenames")
 
   p.add_argument("--seed", type=int, default=11711)
   p.add_argument("--epochs", type=int, default=10)
@@ -523,7 +525,10 @@ def main():
   else:
     lora_suffix = ""
 
-  base_tag = f"{args.model_size}-{args.epochs}-{args.lr}{lora_suffix}"
+  if args.run_name is not None:
+    base_tag = args.run_name
+  else:
+    base_tag = f"{args.model_size}-{args.epochs}-{args.lr}{lora_suffix}"
   version, exp_tag = auto_version(base_tag)
   args.version = f"v{version}"
 
