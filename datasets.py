@@ -278,7 +278,7 @@ class PrefixSonnetsDataset(Dataset):
     prefix_lines = [example[3] for example in all_data]
 
     full_encoding = self.tokenizer(full_texts, return_tensors='pt', padding=True, truncation=True)
-    prompt_encoding = self.tokenizer(prompts, return_tensors='pt', padding=False, truncation=True)
+    prompt_encoding = self.tokenizer(prompts, padding=False, truncation=True)
 
     token_ids = torch.LongTensor(full_encoding['input_ids'])
     attention_mask = torch.LongTensor(full_encoding['attention_mask'])
