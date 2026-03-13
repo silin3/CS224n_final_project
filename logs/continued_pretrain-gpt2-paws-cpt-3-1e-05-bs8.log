@@ -1,0 +1,1 @@
+2026-03-08 08:08:15 | Args: {'train_text': 'data/paws-cpt-train.txt', 'epochs': 3, 'batch_size': 8, 'lr': 1e-05, 'grad_clip': 1.0, 'max_length': 128, 'model_size': 'gpt2', 'seed': 11711, 'use_gpu': False, 'resume_from': None, 'filepath': 'gpt2-paws-cpt-3-1e-05-bs8.pt', 'exp_tag': 'gpt2-paws-cpt-3-1e-05-bs8', 'd': 768, 'l': 12, 'num_heads': 12}

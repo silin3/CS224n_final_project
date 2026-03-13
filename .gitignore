@@ -4,9 +4,11 @@
 *.pt
 *.pkl
 .idea/
+.gitignore
 out/
 venv
 cs224n_dfp/
-.DS_Storedata/paws-cpt-unlabeled-final.txt
+.DS_Store
+data/paws-cpt-unlabeled-final.txt
 data/paws-unlabeled-final-train.csv
 data/paws-cpt-all.txt

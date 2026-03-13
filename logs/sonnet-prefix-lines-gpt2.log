@@ -1,0 +1,114 @@
+python sonnet_generation.py \
+  --use_gpu \
+  --sonnet_path data/sonnets.txt \
+  --held_out_sonnet_path data/sonnets_held_out_dev.txt \
+  --run_name sonnet-prefix-heldoutdev \
+  --multi_prefix_train \
+  --prefix_line_counts 4,6,8 \
+  --min_target_lines 4 \
+  --epochs 10 \
+  --temperature 1.2 \
+  --top_p 0.9 \
+  --batch_size 32 \
+  --lr 1e-5 \
+  --val_ratio 0.1 \
+  --early_stop_patience 3 \
+  --model_size gpt2
+  Best checkpoint: best_sonnet-prefix-heldoutdev_v1-sonnet.pt
+  Predictions: predictions/sonnets-sonnet-prefix-heldoutdev_v1.txt
+  Train: lr=1e-05, batch=32, val_ratio=0.1, patience=3
+  Prefix train: lines=4,6,8, min_target_lines=4
+  Gen: temp=1.2, top_p=0.9, N=5, ngram=3, min_new=120, max_new=220
+Using multi-prefix training: prefix_lines=(4, 6, 8), min_target_lines=4, examples=393
+train-0: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████| 12/12 [00:07<00:00,  1.51it/s]
+eval: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:00<00:00,  7.09it/s]
+Epoch 0: train_loss=4.5941  val_loss=4.3822
+Saved checkpoint to best_sonnet-prefix-heldoutdev_v1-sonnet.pt
+train-1: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████| 12/12 [00:07<00:00,  1.71it/s]
+eval: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:00<00:00,  7.05it/s]
+Epoch 1: train_loss=4.4724  val_loss=4.3176
+Saved checkpoint to best_sonnet-prefix-heldoutdev_v1-sonnet.pt
+train-2: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████| 12/12 [00:06<00:00,  1.73it/s]
+eval: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:00<00:00,  6.98it/s]
+Epoch 2: train_loss=4.3860  val_loss=4.2627
+Saved checkpoint to best_sonnet-prefix-heldoutdev_v1-sonnet.pt
+train-3: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████| 12/12 [00:07<00:00,  1.70it/s]
+eval: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:00<00:00,  6.91it/s]
+Epoch 3: train_loss=4.3234  val_loss=4.2134
+Saved checkpoint to best_sonnet-prefix-heldoutdev_v1-sonnet.pt
+train-4: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████| 12/12 [00:07<00:00,  1.70it/s]
+eval: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:00<00:00,  6.81it/s]
+Epoch 4: train_loss=4.2704  val_loss=4.1660
+Saved checkpoint to best_sonnet-prefix-heldoutdev_v1-sonnet.pt
+train-5: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████| 12/12 [00:07<00:00,  1.69it/s]
+eval: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:00<00:00,  6.94it/s]
+Epoch 5: train_loss=4.2126  val_loss=4.1221
+Saved checkpoint to best_sonnet-prefix-heldoutdev_v1-sonnet.pt
+train-6: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████| 12/12 [00:07<00:00,  1.68it/s]
+eval: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:00<00:00,  6.91it/s]
+Epoch 6: train_loss=4.1528  val_loss=4.0819
+train-7: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████| 12/12 [00:07<00:00,  1.69it/s]
+eval: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:00<00:00,  6.75it/s]
+Epoch 7: train_loss=4.1133  val_loss=4.0409
+Saved checkpoint to best_sonnet-prefix-heldoutdev_v1-sonnet.pt
+train-8: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████| 12/12 [00:07<00:00,  1.67it/s]
+eval: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:00<00:00,  6.79it/s]
+Epoch 8: train_loss=4.0536  val_loss=4.0017
+Saved checkpoint to best_sonnet-prefix-heldoutdev_v1-sonnet.pt
+train-9: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████| 12/12 [00:07<00:00,  1.67it/s]
+eval: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:00<00:00,  6.81it/s]
+Epoch 9: train_loss=4.0254  val_loss=3.9676
+
+
+keruilu@cs224n-dfp-2-instance:~/CS224n_final_project$ python sonnet_generation.py \                                                                   --use_gpu \                                                                                                                                         --sonnet_path data/sonnets.txt \
+  --held_out_sonnet_path data/sonnets_held_out_dev.txt \
+  --run_name sonnet-prefix-heldoutdev-20e \
+  --multi_prefix_train \
+  --prefix_line_counts 4,6,8 \
+  --min_target_lines 4 \
+  --epochs 20 \
+  --temperature 1.2 \
+  --top_p 0.9 \
+  --batch_size 32 \
+  --lr 1e-5 \
+  --val_ratio 0.1 \
+  --early_stop_patience 3 \
+  --model_size gpt2
+Experiment: sonnet-prefix-heldoutdev-20e_v1
+  Best checkpoint: best_sonnet-prefix-heldoutdev-20e_v1-sonnet.pt
+  Predictions: predictions/sonnets-sonnet-prefix-heldoutdev-20e_v1.txt
+  Train: lr=1e-05, batch=32, val_ratio=0.1, patience=3
+  Prefix train: lines=4,6,8, min_target_lines=4
+  Gen: temp=1.2, top_p=0.9, N=5, ngram=3, min_new=120, max_new=220
+Using multi-prefix training: prefix_lines=(4, 6, 8), min_target_lines=4, examples=393
+Epoch 12: train_loss=3.8804  val_loss=3.8656
+Saved checkpoint to best_sonnet-prefix-heldoutdev-20e_v1-sonnet.pt
+train-13: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████| 12/12 [00:07<00:00,  1.61it/s]
+eval: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:00<00:00,  6.58it/s]
+Epoch 13: train_loss=3.8532  val_loss=3.8282
+Saved checkpoint to best_sonnet-prefix-heldoutdev-20e_v1-sonnet.pt
+train-14: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████| 12/12 [00:07<00:00,  1.61it/s]
+eval: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:00<00:00,  6.66it/s]
+Epoch 14: train_loss=3.7810  val_loss=3.7984
+Saved checkpoint to best_sonnet-prefix-heldoutdev-20e_v1-sonnet.pt
+train-15: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████| 12/12 [00:07<00:00,  1.62it/s]
+eval: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:00<00:00,  6.63it/s]
+Epoch 15: train_loss=3.7646  val_loss=3.7669
+Saved checkpoint to best_sonnet-prefix-heldoutdev-20e_v1-sonnet.pt
+train-16: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████| 12/12 [00:07<00:00,  1.65it/s]
+eval: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:00<00:00,  6.69it/s]
+Epoch 16: train_loss=3.7218  val_loss=3.7405
+Saved checkpoint to best_sonnet-prefix-heldoutdev-20e_v1-sonnet.pt
+train-17: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████| 12/12 [00:07<00:00,  1.64it/s]
+eval: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:00<00:00,  6.66it/s]
+Epoch 17: train_loss=3.6780  val_loss=3.7029
+Saved checkpoint to best_sonnet-prefix-heldoutdev-20e_v1-sonnet.pt
+train-18: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████| 12/12 [00:07<00:00,  1.63it/s]
+eval: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:00<00:00,  6.55it/s]
+Epoch 18: train_loss=3.5895  val_loss=3.6732
+Saved checkpoint to best_sonnet-prefix-heldoutdev-20e_v1-sonnet.pt
+train-19: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████| 12/12 [00:07<00:00,  1.61it/s]
+eval: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:00<00:00,  6.57it/s]
+Epoch 19: train_loss=3.5814  val_loss=3.6438
+Saved checkpoint to best_sonnet-prefix-heldoutdev-20e_v1-sonnet.pt
+Wrote predictions to predictions/sonnets-sonnet-prefix-heldoutdev-20e_v1.txt
