@@ -1,0 +1,5 @@
+Gold file: data/TRUE_sonnets_held_out_dev.txt
+
+predictions/sonnets-sonnet-dataaug-heldoutdev_v1.txt: CHRF = 41.939790
+predictions/sonnets-sonnet-contemporary-heldoutdev_v1.txt: CHRF = 42.510100
+predictions/sonnets-sonnet-prefix-heldoutdev_v1.txt: CHRF = 42.247397
