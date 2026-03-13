@@ -229,3 +229,74 @@ class SonnetsDataset(Dataset):
     }
 
     return batched_data
+
+
+class PrefixSonnetsDataset(Dataset):
+  """Build multiple prefix->continuation LM examples from each sonnet."""
+
+  def __init__(self, file_path, prefix_line_counts=(4, 6, 8), min_target_lines=4):
+    self.tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+    self.tokenizer.pad_token = self.tokenizer.eos_token
+    self.examples = self._build_examples(file_path, prefix_line_counts, min_target_lines)
+
+  def _load_sonnets(self, file_path):
+    with open(file_path, 'r', encoding='utf-8') as f:
+      text = f.read()
+    sonnets = re.split(r'\n\s*\d+\s*\n', text)[1:]
+    return [s.strip() for s in sonnets]
+
+  def _build_examples(self, file_path, prefix_line_counts, min_target_lines):
+    examples = []
+    sonnets = self._load_sonnets(file_path)
+
+    for sid, sonnet in enumerate(sonnets):
+      lines = [line.strip() for line in sonnet.splitlines() if line.strip()]
+      if len(lines) < min_target_lines + 1:
+        continue
+
+      full_text = '\n'.join(lines)
+      for prefix_lines in prefix_line_counts:
+        if prefix_lines <= 0 or prefix_lines >= len(lines):
+          continue
+        if len(lines) - prefix_lines < min_target_lines:
+          continue
+        prompt = '\n'.join(lines[:prefix_lines]).strip()
+        examples.append((sid, prompt, full_text, prefix_lines))
+
+    return examples
+
+  def __len__(self):
+    return len(self.examples)
+
+  def __getitem__(self, idx):
+    return self.examples[idx]
+
+  def collate_fn(self, all_data):
+    idx = [example[0] for example in all_data]
+    prompts = [example[1] for example in all_data]
+    full_texts = [example[2] for example in all_data]
+    prefix_lines = [example[3] for example in all_data]
+
+    full_encoding = self.tokenizer(full_texts, return_tensors='pt', padding=True, truncation=True)
+    prompt_encoding = self.tokenizer(prompts, return_tensors='pt', padding=False, truncation=True)
+
+    token_ids = torch.LongTensor(full_encoding['input_ids'])
+    attention_mask = torch.LongTensor(full_encoding['attention_mask'])
+    loss_mask = attention_mask.clone()
+
+    prompt_lengths = []
+    for i, prompt_ids in enumerate(prompt_encoding['input_ids']):
+      prompt_len = min(len(prompt_ids), token_ids.size(1))
+      prompt_lengths.append(prompt_len)
+      loss_mask[i, :prompt_len] = 0
+
+    batched_data = {
+      'token_ids': token_ids,
+      'attention_mask': attention_mask,
+      'loss_mask': loss_mask,
+      'prompt_lengths': torch.LongTensor(prompt_lengths),
+      'prefix_lines': torch.LongTensor(prefix_lines),
+      'sent_ids': idx
+    }
+
+    return batched_data

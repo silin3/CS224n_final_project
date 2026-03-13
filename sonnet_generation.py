@@ -24,7 +24,7 @@ from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
 from transformers import GPT2Tokenizer
 
-from datasets import SonnetsDataset
+from datasets import SonnetsDataset, PrefixSonnetsDataset
 from models.gpt2 import GPT2Model
 from modules.lora import apply_lora_to_gpt2
 from optimizer import AdamW
@@ -299,7 +299,10 @@ def compute_lm_loss(model, dataloader, device):
     logits = model(b_ids, b_mask)                 # [B, T, V]
     shift_logits = logits[:, :-1, :].contiguous()
     shift_labels = b_ids[:, 1:].contiguous()
-    shift_mask = b_mask[:, 1:].contiguous().float()
+    if "loss_mask" in batch:
+      shift_mask = batch["loss_mask"][:, 1:].to(device).contiguous().float()
+    else:
+      shift_mask = b_mask[:, 1:].contiguous().float()
 
     per_tok = F.cross_entropy(
       shift_logits.view(-1, shift_logits.size(-1)),
@@ -319,7 +322,17 @@ def compute_lm_loss(model, dataloader, device):
 def train(args):
   device = torch.device("cuda") if args.use_gpu else torch.device("cpu")
 
-  full_dataset = SonnetsDataset(args.sonnet_path)
+  if args.multi_prefix_train:
+    prefix_line_counts = tuple(int(x.strip()) for x in args.prefix_line_counts.split(",") if x.strip())
+    full_dataset = PrefixSonnetsDataset(
+      args.sonnet_path,
+      prefix_line_counts=prefix_line_counts,
+      min_target_lines=args.min_target_lines,
+    )
+    print(f"Using multi-prefix training: prefix_lines={prefix_line_counts}, min_target_lines={args.min_target_lines}, "
+          f"examples={len(full_dataset)}")
+  else:
+    full_dataset = SonnetsDataset(args.sonnet_path)
   n_total = len(full_dataset)
 
   # Allow val_ratio=0.0 (no early stop)
@@ -378,7 +391,10 @@ def train(args):
       # padding-masked LM loss
       shift_logits = logits[:, :-1, :].contiguous()
       shift_labels = b_ids[:, 1:].contiguous()
-      shift_mask = b_mask[:, 1:].contiguous().float()
+      if "loss_mask" in batch:
+        shift_mask = batch["loss_mask"][:, 1:].to(device).contiguous().float()
+      else:
+        shift_mask = b_mask[:, 1:].contiguous().float()
 
       per_tok = F.cross_entropy(
         shift_logits.view(-1, shift_logits.size(-1)),
@@ -485,6 +501,12 @@ def get_args():
   p.add_argument("--batch_size", type=int, default=8)
   p.add_argument("--lr", type=float, default=1e-5)
   p.add_argument("--grad_clip", type=float, default=1.0)
+  p.add_argument("--multi_prefix_train", action="store_true",
+                 help="Train on multiple prefix->continuation examples built from each sonnet")
+  p.add_argument("--prefix_line_counts", type=str, default="4,6,8",
+                 help="Comma-separated prefix line counts used when --multi_prefix_train is enabled")
+  p.add_argument("--min_target_lines", type=int, default=4,
+                 help="Minimum number of continuation lines to keep in prefix training mode")
 
   # Val + early stop (tiny split; set 0 to disable)
   p.add_argument("--val_ratio", type=float, default=0.02)
@@ -541,6 +563,8 @@ def main():
   if args.lora_mode != "none":
     print(f"  LoRA: mode={args.lora_mode}, r={args.lora_r}, alpha={args.lora_alpha}")
   print(f"  Train: lr={args.lr}, batch={args.batch_size}, val_ratio={args.val_ratio}, patience={args.early_stop_patience}")
+  if args.multi_prefix_train:
+    print(f"  Prefix train: lines={args.prefix_line_counts}, min_target_lines={args.min_target_lines}")
   print(f"  Gen: temp={args.temperature}, top_p={args.top_p}, N={args.num_candidates}, ngram={args.no_repeat_ngram_size}, "
         f"min_new={args.min_new_tokens}, max_new={args.max_new_tokens}")
 
