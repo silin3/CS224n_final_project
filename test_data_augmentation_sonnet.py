@@ -7,6 +7,9 @@ test_files = [
     "predictions/sonnets-sonnet-dataaug-heldoutdev_v1.txt",
     "predictions/sonnets-sonnet-contemporary-heldoutdev_v1.txt",
     "predictions/sonnets-sonnet-prefix-heldoutdev_v1.txt",
+    "predictions/sonnets-gpt2-10-1e-05-lora-all_attn-r8-a8_v1.txt",
+    "predictions/sonnets-gpt2-10-1e-05-lora-attn_mlp-r8-a8_v1.txt",
+    "predictions/sonnets-gpt2-10-1e-05-lora-qv-r8-a8_v1.txt",
 ]
 
 output_path = "predictions/sonnet_eval_results.txt"

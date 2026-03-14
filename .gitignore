@@ -18,3 +18,5 @@ data/paws-cpt-all.txt
 data/paws-cpt-unlabeled-final.txt
 data/gutenberg_clean
 data/gutenberg_raw
+predictions/para-dev-gpt2-10-1e-05-nopaws-cptinit.csv
+predictions/para-test-gpt2-10-1e-05-nopaws-cptinit.csv
