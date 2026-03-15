@@ -17,6 +17,9 @@ sonnets-gpt2-10-1e-05_v1.txt: CHRF=43.537
 sonnets-gpt2-10-1e-05-lora-attn_mlp-r8-a8_v2.txt: CHRF=42.037
 sonnets-gpt2-10-1e-05-lora-all_attn-r8-a8_v1.txt: CHRF=41.677
 sonnets-gpt2-10-1e-05-lora-qv-r8-a8_v1.txt: CHRF=42.063
+sonnets-gpt2-10-1e-05-qlora-qv-r8-a8-b4-g64_v1.txt: CHRF=41.618
+sonnets-gpt2-10-1e-05-qlora-all_attn-r8-a8-b4-g64_v1.txt: CHRF=41.909
+sonnets-dev-gpt2-10-1e-05-qlora-attn_mlp-r8-a8-b4-g64_v1.txt: CHRF=41.668
 
 === Paraphrase DEV (acc / macro-F1) ===
 para-dev-gpt2-10-1e-05.csv: acc=0.8958 f1=0.8882 n=40429 missing=0 extra=0
@@ -24,6 +27,9 @@ para-dev-gpt2-10-1e-05-lora-qv.csv: acc=0.8223 f1=0.8107 n=40429 missing=0 extra
 para-dev-gpt2-10-1e-05-lora-attn_mlp.csv: acc=0.8473 f1=0.8374 n=40429 missing=0 extra=0
 para-dev-gpt2-10-2e-05-lora-attn_mlp.csv: acc=0.8612 f1=0.8517 n=40429 missing=0 extra=0
 para-dev-gpt2-large-10-2e-05-lora-all_attn.csv: acc=0.8481 f1=0.8410 n=40429 missing=0 extra=0
+para-dev-1e-5-output-qlora-qv.csv: acc=0.8337 f1=0.8268 n=40429 missing=0 extra=0
+para-dev-output-2e-05-qlora-all_attn.csv: acc=0.8596 f1=0.8518 n=40429 missing=0 extra=0
+para-dev-output-2e-05-qlora-qv.csv: acc=0.8462 f1=0.8376 n=40429 missing=0 extra=0
 
 === Paraphrase TEST (coverage check) ===
 para-test-gpt2-10-1e-05.csv: rows=80858 missing=0 extra=0
@@ -31,3 +37,6 @@ para-test-gpt2-10-1e-05-lora-qv.csv: rows=80858 missing=0 extra=0
 para-test-gpt2-10-1e-05-lora-attn_mlp.csv: rows=80858 missing=0 extra=0
 para-test-gpt2-10-2e-05-lora-attn_mlp.csv: rows=80858 missing=0 extra=0
 para-test-gpt2-large-10-2e-05-lora-all_attn.csv: rows=80858 missing=0 extra=0
+para-test-1e-5-output-qlora-qv.csv: rows=80858 missing=0 extra=0
+para-test-output-2e-05-qlora-all_attn.csv: rows=80858 missing=0 extra=0
+para-test-output-2e-05-qlora-qv.csv: rows=80858 missing=0 extra=0

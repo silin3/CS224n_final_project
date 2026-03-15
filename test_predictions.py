@@ -25,6 +25,9 @@ SONNET_FILES = [
   "sonnets-gpt2-10-1e-05-lora-attn_mlp-r8-a8_v2.txt",
   "sonnets-gpt2-10-1e-05-lora-all_attn-r8-a8_v1.txt",
   "sonnets-gpt2-10-1e-05-lora-qv-r8-a8_v1.txt",
+  "sonnets-gpt2-10-1e-05-qlora-qv-r8-a8-b4-g64_v1.txt",
+  "sonnets-gpt2-10-1e-05-qlora-all_attn-r8-a8-b4-g64_v1.txt",
+  "sonnets-dev-gpt2-10-1e-05-qlora-attn_mlp-r8-a8-b4-g64_v1.txt",
 
 
 ]
@@ -35,6 +38,9 @@ PARA_DEV_FILES = [
   "para-dev-gpt2-10-1e-05-lora-attn_mlp.csv",
   "para-dev-gpt2-10-2e-05-lora-attn_mlp.csv",
   "para-dev-gpt2-large-10-2e-05-lora-all_attn.csv",
+  "para-dev-1e-5-output-qlora-qv.csv",
+  "para-dev-output-2e-05-qlora-all_attn.csv",
+  "para-dev-output-2e-05-qlora-qv.csv",
 ]
 
 PARA_TEST_FILES = [
@@ -43,6 +49,9 @@ PARA_TEST_FILES = [
   "para-test-gpt2-10-1e-05-lora-attn_mlp.csv",
   "para-test-gpt2-10-2e-05-lora-attn_mlp.csv",
   "para-test-gpt2-large-10-2e-05-lora-all_attn.csv",
+  "para-test-1e-5-output-qlora-qv.csv",
+  "para-test-output-2e-05-qlora-all_attn.csv",
+  "para-test-output-2e-05-qlora-qv.csv",
 ]
 
 TOKEN_ID_NO = 3919

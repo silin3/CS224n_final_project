@@ -28,6 +28,7 @@ from transformers import GPT2Tokenizer
 from datasets import SonnetsDataset, PrefixSonnetsDataset
 from models.gpt2 import GPT2Model
 from modules.lora import apply_lora_to_gpt2
+from modules.qlora import apply_qlora_to_gpt2
 from optimizer import AdamW
 
 TQDM_DISABLE = False
@@ -110,12 +111,23 @@ class SonnetGPT(nn.Module):
 
     lora_mode = getattr(args, "lora_mode", "none")
     if lora_mode != "none":
-      apply_lora_to_gpt2(
-        self.gpt,
-        lora_mode=lora_mode,
-        lora_r=getattr(args, "lora_r", 8),
-        lora_alpha=getattr(args, "lora_alpha", None),
-      )
+      if getattr(args, "use_qlora", False):
+        apply_qlora_to_gpt2(
+          self.gpt,
+          qlora_mode=lora_mode,
+          qlora_r=getattr(args, "lora_r", 8),
+          qlora_alpha=getattr(args, "lora_alpha", None),
+          n_bits=getattr(args, "qlora_bits", 4),
+          group_size=getattr(args, "qlora_group_size", 64),
+          quantize_bias=getattr(args, "qlora_quantize_bias", False),
+        )
+      else:
+        apply_lora_to_gpt2(
+          self.gpt,
+          lora_mode=lora_mode,
+          lora_r=getattr(args, "lora_r", 8),
+          lora_alpha=getattr(args, "lora_alpha", None),
+        )
       # freeze base
       for p in self.gpt.parameters():
         p.requires_grad = False
@@ -277,10 +289,25 @@ def _to_namespace(obj):
 
 
 def save_model(model, optimizer, args, filepath, epoch=None, best_val=None, early_state=None):
+def infer_eval_split_tag(held_out_path: str) -> str:
+  """Infer eval split label from held-out prompt file name."""
+  name = os.path.basename(held_out_path).lower()
+  if "dev" in name:
+    return "dev"
+  if "test" in name or "held_out" in name:
+    return "test"
+  return "eval"
+
+
+def save_model(model, optimizer, args, filepath):
   lora_config = {
     "lora_mode": getattr(args, "lora_mode", "none"),
     "lora_r": getattr(args, "lora_r", 8),
     "lora_alpha": getattr(args, "lora_alpha", None),
+    "use_qlora": getattr(args, "use_qlora", False),
+    "qlora_bits": getattr(args, "qlora_bits", 4),
+    "qlora_group_size": getattr(args, "qlora_group_size", 64),
+    "qlora_quantize_bias": getattr(args, "qlora_quantize_bias", False),
   }
   save_info = {
     "model": model.state_dict(),
@@ -573,6 +600,14 @@ def get_args():
                  choices=["none", "qv", "all_attn", "attn_mlp"])
   p.add_argument("--lora_r", type=int, default=8)
   p.add_argument("--lora_alpha", type=float, default=None)
+  p.add_argument("--use_qlora", action="store_true",
+                 help="Use QLoRA wrapper instead of LoRA when lora_mode != none.")
+  p.add_argument("--qlora_bits", type=int, default=4,
+                 help="Fake quantization bit-width used by QLoRA.")
+  p.add_argument("--qlora_group_size", type=int, default=64,
+                 help="Group size for group-wise fake quantization in QLoRA.")
+  p.add_argument("--qlora_quantize_bias", action="store_true",
+                 help="Also fake-quantize linear bias in QLoRA.")
 
   # Generation + rerank
   p.add_argument("--temperature", type=float, default=1.0)
@@ -593,7 +628,15 @@ def main():
     args.lora_alpha = float(args.lora_r)
 
   if args.lora_mode != "none":
-    lora_suffix = f"-lora-{args.lora_mode}-r{args.lora_r}-a{int(args.lora_alpha)}"
+    if args.use_qlora:
+      lora_suffix = (
+        f"-qlora-{args.lora_mode}-r{args.lora_r}-a{int(args.lora_alpha)}"
+        f"-b{args.qlora_bits}-g{args.qlora_group_size}"
+      )
+      if args.qlora_quantize_bias:
+        lora_suffix += "-qbias"
+    else:
+      lora_suffix = f"-lora-{args.lora_mode}-r{args.lora_r}-a{int(args.lora_alpha)}"
   else:
     lora_suffix = ""
 
@@ -614,12 +657,26 @@ def main():
 
     args.filepath = f"{exp_tag}-sonnet.pt"
     args.sonnet_out = f"predictions/sonnets-{exp_tag}.txt"
+  base_tag = f"{args.model_size}-{args.epochs}-{args.lr}{lora_suffix}"
+  version, exp_tag = auto_version(base_tag)
+  args.version = f"v{version}"
+  split_tag = infer_eval_split_tag(args.held_out_sonnet_path)
+
+  args.filepath = f"{exp_tag}-sonnet.pt"
+  args.sonnet_out = f"predictions/sonnets-{split_tag}-{exp_tag}.txt"
 
   print(f"Experiment: {exp_tag}")
   print(f"  Best checkpoint: best_{args.filepath}")
   print(f"  Predictions: {args.sonnet_out}")
   if args.lora_mode != "none":
-    print(f"  LoRA: mode={args.lora_mode}, r={args.lora_r}, alpha={args.lora_alpha}")
+    if args.use_qlora:
+      print(
+        f"  QLoRA: mode={args.lora_mode}, r={args.lora_r}, alpha={args.lora_alpha}, "
+        f"bits={args.qlora_bits}, group={args.qlora_group_size}, "
+        f"quantize_bias={args.qlora_quantize_bias}"
+      )
+    else:
+      print(f"  LoRA: mode={args.lora_mode}, r={args.lora_r}, alpha={args.lora_alpha}")
   print(f"  Train: lr={args.lr}, batch={args.batch_size}, val_ratio={args.val_ratio}, patience={args.early_stop_patience}")
   if args.multi_prefix_train:
     print(f"  Prefix train: lines={args.prefix_line_counts}, min_target_lines={args.min_target_lines}")
