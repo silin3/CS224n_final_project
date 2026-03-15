@@ -1,0 +1,10 @@
+2026-03-08 08:31:33 | Args: {'train_text': 'data/paws-cpt-all.txt', 'epochs': 5, 'batch_size': 24, 'lr': 1e-05, 'grad_clip': 1.0, 'max_length': 128, 'model_size': 'gpt2', 'seed': 11711, 'use_gpu': True, 'resume_from': None, 'filepath': 'gpt2-paws-cpt-all-5e-1e-05-bs24.pt', 'exp_tag': 'gpt2-paws-cpt-5-1e-05-bs24', 'd': 768, 'l': 12, 'num_heads': 12}
+2026-03-08 10:29:23 | Epoch 0: train_lm_loss=2.042097, best_train_lm_loss=2.042097 [saved best]
+2026-03-08 12:27:25 | Epoch 1: train_lm_loss=1.912317, best_train_lm_loss=1.912317 [saved best]
+2026-03-08 14:25:19 | Epoch 2: train_lm_loss=1.850913, best_train_lm_loss=1.850913 [saved best]
+2026-03-08 22:38:31 | Args: {'train_text': 'data/paws-cpt-all.txt', 'epochs': 5, 'batch_size': 24, 'lr': 1e-05, 'grad_clip': 1.0, 'max_length': 128, 'model_size': 'gpt2', 'seed': 11711, 'use_gpu': True, 'resume_from': 'gpt2-paws-cpt-all-5e-1e-05-bs24.pt', 'filepath': 'gpt2-paws-cpt-all-5e-1e-05-bs24.pt', 'exp_tag': 'gpt2-paws-cpt-5-1e-05-bs24', 'd': 768, 'l': 12, 'num_heads': 12}
+2026-03-08 22:38:38 | Resuming from gpt2-paws-cpt-all-5e-1e-05-bs24.pt
+2026-03-08 22:38:46 | Resume state: start_epoch=3, best_train_loss=1.850913
+2026-03-09 00:37:49 | Epoch 3: train_lm_loss=1.794945, best_train_lm_loss=1.794945 [saved best]
+2026-03-09 02:36:47 | Epoch 4: train_lm_loss=1.754835, best_train_lm_loss=1.754835 [saved best]
+2026-03-09 02:36:47 | Finished. Last checkpoint: gpt2-paws-cpt-all-5e-1e-05-bs24.pt; best checkpoint: best_gpt2-paws-cpt-all-5e-1e-05-bs24.pt

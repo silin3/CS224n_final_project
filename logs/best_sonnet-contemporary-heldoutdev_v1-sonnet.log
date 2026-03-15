@@ -1,0 +1,59 @@
+python sonnet_generation.py \
+  --use_gpu \
+  --sonnet_path data/contemporary_sonnets_augmented.txt \
+  --held_out_sonnet_path data/sonnets_held_out_dev.txt \
+  --run_name sonnet-contemporary-heldoutdev \
+  --epochs 10 \
+  --temperature 1.2 \
+  --top_p 0.9 \
+  --batch_size 32 \
+  --lr 1e-5 \
+  --val_ratio 0.1 \
+  --early_stop_patience 3 \
+  --model_size gpt2
+Experiment: sonnet-contemporary-heldoutdev_v1
+  Best checkpoint: best_sonnet-contemporary-heldoutdev_v1-sonnet.pt
+  Predictions: predictions/sonnets-sonnet-contemporary-heldoutdev_v1.txt
+  Train: lr=1e-05, batch=32, val_ratio=0.1, patience=3
+  Gen: temp=1.2, top_p=0.9, N=5, ngram=3, min_new=120, max_new=220
+train-0:  89%|████████████████████████████████████████████████████████████████████████████████████          | 17/19 [00:12<00:01,  1.44it/s]train-0: 100%|██████████████████████████████████████████████████████████████████████████████████████████████| 19/19 [00:14<00:00,  1.34it/s]
+eval: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████| 3/3 [00:00<00:00,  5.83it/s]
+Epoch 0: train_loss=4.7864  val_loss=4.4873
+Saved checkpoint to best_sonnet-contemporary-heldoutdev_v1-sonnet.pt
+train-1: 100%|██████████████████████████████████████████████████████████████████████████████████████████████| 19/19 [00:13<00:00,  1.46it/s]
+eval: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████| 3/3 [00:00<00:00,  5.96it/s]
+Epoch 1: train_loss=4.5961  val_loss=4.3915
+Saved checkpoint to best_sonnet-contemporary-heldoutdev_v1-sonnet.pt
+train-2: 100%|██████████████████████████████████████████████████████████████████████████████████████████████| 19/19 [00:13<00:00,  1.45it/s]
+eval: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████| 3/3 [00:00<00:00,  5.88it/s]
+Epoch 2: train_loss=4.5107  val_loss=4.3370
+Saved checkpoint to best_sonnet-contemporary-heldoutdev_v1-sonnet.pt
+train-3: 100%|██████████████████████████████████████████████████████████████████████████████████████████████| 19/19 [00:13<00:00,  1.43it/s]
+eval: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████| 3/3 [00:00<00:00,  5.89it/s]
+Epoch 3: train_loss=4.4437  val_loss=4.2954
+^[[ASaved checkpoint to best_sonnet-contemporary-heldoutdev_v1-sonnet.pt
+train-4:   0%|                                                                                                       | 0/19 [00:00<?, ?it/s]train-4: 100%|██████████████████████████████████████████████████████████████████████████████████████████████| 19/19 [00:13<00:00,  1.42it/s]
+eval: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████| 3/3 [00:00<00:00,  5.86it/s]
+Epoch 4: train_loss=4.3887  val_loss=4.2614
+Saved checkpoint to best_sonnet-contemporary-heldoutdev_v1-sonnet.pt
+train-5: 100%|██████████████████████████████████████████████████████████████████████████████████████████████| 19/19 [00:13<00:00,  1.41it/s]
+eval: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████| 3/3 [00:00<00:00,  5.72it/s]
+Epoch 5: train_loss=4.3394  val_loss=4.2325
+Saved checkpoint to best_sonnet-contemporary-heldoutdev_v1-sonnet.pt
+train-6: 100%|██████████████████████████████████████████████████████████████████████████████████████████████| 19/19 [00:13<00:00,  1.38it/s]
+eval: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████| 3/3 [00:00<00:00,  5.66it/s]
+Epoch 6: train_loss=4.2993  val_loss=4.2055
+Saved checkpoint to best_sonnet-contemporary-heldoutdev_v1-sonnet.pt
+train-7: 100%|██████████████████████████████████████████████████████████████████████████████████████████████| 19/19 [00:13<00:00,  1.37it/s]
+eval: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████| 3/3 [00:00<00:00,  5.60it/s]
+Epoch 7: train_loss=4.2609  val_loss=4.1858
+Saved checkpoint to best_sonnet-contemporary-heldoutdev_v1-sonnet.pt
+train-8: 100%|██████████████████████████████████████████████████████████████████████████████████████████████| 19/19 [00:13<00:00,  1.37it/s]
+eval: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████| 3/3 [00:00<00:00,  5.58it/s]
+Epoch 8: train_loss=4.2240  val_loss=4.1668
+Saved checkpoint to best_sonnet-contemporary-heldoutdev_v1-sonnet.pt
+train-9: 100%|██████████████████████████████████████████████████████████████████████████████████████████████| 19/19 [00:13<00:00,  1.38it/s]
+eval: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████| 3/3 [00:00<00:00,  5.68it/s]
+Epoch 9: train_loss=4.1940  val_loss=4.1496
+Saved checkpoint to best_sonnet-contemporary-heldoutdev_v1-sonnet.pt
+Wrote predictions to predictions/sonnets-sonnet-contemporary-heldoutdev_v1.txt

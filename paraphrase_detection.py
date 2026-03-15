@@ -27,7 +27,9 @@ from tqdm import tqdm
 from datasets import (
   ParaphraseDetectionDataset,
   ParaphraseDetectionTestDataset,
-  load_paraphrase_data
+  load_paraphrase_data,
+  load_paws_data,
+  load_mixed_paraphrase_data
 )
 from evaluation import model_eval_paraphrase, model_test_paraphrase
 from models.gpt2 import GPT2Model
@@ -52,6 +54,42 @@ def seed_everything(seed=11711):
   torch.cuda.manual_seed_all(seed)
   torch.backends.cudnn.benchmark = False
   torch.backends.cudnn.deterministic = True
+
+
+def _to_namespace(saved_args):
+  if isinstance(saved_args, argparse.Namespace):
+    return saved_args
+  if isinstance(saved_args, dict):
+    return argparse.Namespace(**saved_args)
+  raise TypeError(f"Unsupported saved args type: {type(saved_args)}")
+
+
+def _extract_gpt_state_dict(saved):
+  if isinstance(saved, dict):
+    if 'gpt_model' in saved and isinstance(saved['gpt_model'], dict):
+      return saved['gpt_model']
+    if 'model' in saved and isinstance(saved['model'], dict):
+      model_sd = saved['model']
+      if any(k.startswith('gpt.') for k in model_sd.keys()):
+        return {k[len('gpt.'):]: v for k, v in model_sd.items() if k.startswith('gpt.')}
+      return model_sd
+    if any(k.startswith('gpt.') for k in saved.keys()):
+      return {k[len('gpt.'):]: v for k, v in saved.items() if k.startswith('gpt.')}
+  raise ValueError("Unable to extract GPT state dict from checkpoint")
+
+
+def load_init_gpt_backbone(model, ckpt_path, logger):
+  saved = torch.load(ckpt_path, weights_only=False)
+  gpt_state_dict = _extract_gpt_state_dict(saved)
+  missing, unexpected = model.gpt.load_state_dict(gpt_state_dict, strict=False)
+  logger.info(
+    f"Initialized GPT backbone from {ckpt_path}; "
+    f"missing_keys={len(missing)}, unexpected_keys={len(unexpected)}"
+  )
+  if len(missing) > 0:
+    logger.info(f"Missing key sample: {missing[:5]}")
+  if len(unexpected) > 0:
+    logger.info(f"Unexpected key sample: {unexpected[:5]}")
 
 
 class ParaphraseGPT(nn.Module):
@@ -105,15 +143,19 @@ class ParaphraseGPT(nn.Module):
     return logits
 
 
-def save_model(model, optimizer, args, filepath):
+def save_model(model, optimizer, args, filepath, epoch=None, best_dev_acc=None):
   save_info = {
     'model': model.state_dict(),
     'optim': optimizer.state_dict(),
-    'args': args,
+    'args': vars(args),
     'system_rng': random.getstate(),
     'numpy_rng': np.random.get_state(),
     'torch_rng': torch.random.get_rng_state(),
   }
+  if epoch is not None:
+    save_info['epoch'] = int(epoch)
+  if best_dev_acc is not None:
+    save_info['best_dev_acc'] = float(best_dev_acc)
 
   torch.save(save_info, filepath)
   print(f"save the model to {filepath}")
@@ -127,6 +169,18 @@ def train(args):
   para_train_data = load_paraphrase_data(args.para_train)
   para_dev_data = load_paraphrase_data(args.para_dev)
 
+  if args.use_paws:
+    paws_train_data = load_paws_data(args.paws_train, split='train')
+    para_train_data = load_mixed_paraphrase_data(
+      quora_data=para_train_data,
+      paws_data=paws_train_data,
+      paws_mix_ratio=args.paws_mix_ratio,
+      seed=args.paws_seed,
+      max_paws_samples=args.paws_max_samples,
+    )
+    logger.info(f"Using PAWS for training: path={args.paws_train}, mix_ratio={args.paws_mix_ratio}, "
+                f"max_samples={args.paws_max_samples}, seed={args.paws_seed}")
+
   para_train_data = ParaphraseDetectionDataset(para_train_data, args)
   para_dev_data = ParaphraseDetectionDataset(para_dev_data, args)
 
@@ -137,6 +191,12 @@ def train(args):
 
   args = add_arguments(args)
   model = ParaphraseGPT(args)
+
+  if args.resume_from is not None and args.init_gpt_from is not None:
+    logger.info("Both --resume_from and --init_gpt_from were set; ignoring --init_gpt_from.")
+  elif args.init_gpt_from is not None:
+    load_init_gpt_backbone(model, args.init_gpt_from, logger)
+
   model = model.to(device)
 
   n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -146,9 +206,28 @@ def train(args):
   lr = args.lr
   optimizer = AdamW(model.parameters(), lr=lr, weight_decay=0.)
   best_dev_acc = 0
+  start_epoch = 0
+
+  if args.resume_from is not None:
+    resume_path = args.resume_from
+    logger.info(f"Resuming training from {resume_path}")
+    saved = torch.load(resume_path, weights_only=False)
+    model.load_state_dict(saved['model'])
+    if 'optim' in saved:
+      optimizer.load_state_dict(saved['optim'])
+    best_dev_acc = float(saved.get('best_dev_acc', 0.0))
+    start_epoch = int(saved.get('epoch', -1)) + 1
+    if args.resume_epoch is not None:
+      start_epoch = args.resume_epoch
+      logger.info(f"Using manual resume_epoch override: {start_epoch}")
+    logger.info(f"Resume state: start_epoch={start_epoch}, best_dev_acc={best_dev_acc:.3f}")
+
+  if start_epoch >= args.epochs:
+    logger.info(f"Skip training: start_epoch={start_epoch} >= epochs={args.epochs}")
+    return
 
   # Run for the specified number of epochs.
-  for epoch in range(args.epochs):
+  for epoch in range(start_epoch, args.epochs):
     model.train()
     train_loss = 0
     num_batches = 0
@@ -177,7 +256,7 @@ def train(args):
     saved_flag = ""
     if dev_acc > best_dev_acc:
       best_dev_acc = dev_acc
-      save_model(model, optimizer, args, args.filepath)
+      save_model(model, optimizer, args, args.filepath, epoch=epoch, best_dev_acc=best_dev_acc)
       saved_flag = " [saved]"
 
     msg = f"Epoch {epoch}: train loss :: {train_loss :.3f}, dev acc :: {dev_acc :.3f}, dev f1 :: {dev_f1 :.3f}, best dev acc :: {best_dev_acc :.3f}{saved_flag}"
@@ -190,19 +269,26 @@ def test(args):
   """Evaluate your model on the dev and test datasets; save the predictions to disk."""
   logger = logging.getLogger('paraphrase')
   device = torch.device('cuda') if args.use_gpu else torch.device('cpu')
-  saved = torch.load(args.filepath)
+  ckpt_path = args.filepath
+  if not os.path.exists(ckpt_path):
+    if args.resume_from is not None and os.path.exists(args.resume_from):
+      ckpt_path = args.resume_from
+      logger.info(f"[Test] {args.filepath} not found, falling back to resume checkpoint: {ckpt_path}")
+    else:
+      raise FileNotFoundError(f"Checkpoint not found: {args.filepath}")
+  saved = torch.load(ckpt_path, weights_only=False)
 
-  saved_args = saved['args']
+  saved_args = _to_namespace(saved['args'])
   model = ParaphraseGPT(saved_args)
   model.load_state_dict(saved['model'])
   model = model.to(device)
   model.eval()
-  print(f"Loaded model to test from {args.filepath}")
+  print(f"Loaded model to test from {ckpt_path}")
 
   # Log model info
   n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
   n_total = sum(p.numel() for p in model.parameters())
-  logger.info(f"[Test] Loaded model from {args.filepath}")
+  logger.info(f"[Test] Loaded model from {ckpt_path}")
   logger.info(f"[Test] Model: {saved_args.model_size}, lora_mode={getattr(saved_args, 'lora_mode', 'none')}, "
               f"lora_r={getattr(saved_args, 'lora_r', 'N/A')}, lr={saved_args.lr}, epochs={saved_args.epochs}, "
               f"batch_size={getattr(saved_args, 'batch_size', 'N/A')}")
@@ -263,13 +349,27 @@ def get_args():
   parser.add_argument("--para_train", type=str, default="data/quora-train.csv")
   parser.add_argument("--para_dev", type=str, default="data/quora-dev.csv")
   parser.add_argument("--para_test", type=str, default="data/quora-test-student.csv")
+  parser.add_argument("--paws_train", type=str, default="data/paws-train.csv",
+                      help="PAWS train file")
   parser.add_argument("--para_dev_out", type=str, default="predictions/para-dev-output.csv")
   parser.add_argument("--para_test_out", type=str, default="predictions/para-test-output.csv")
 
   parser.add_argument("--seed", type=int, default=11711)
   parser.add_argument("--epochs", type=int, default=10)
+  parser.add_argument("--resume_from", type=str, default=None,
+                      help="Path to checkpoint to resume from")
+  parser.add_argument("--resume_epoch", type=int, default=None,
+                      help="Manual override for resume start epoch (useful for old checkpoints)")
+  parser.add_argument("--init_gpt_from", type=str, default=None,
+                      help="Initialize GPT backbone from continued pretraining checkpoint")
   parser.add_argument("--use_gpu", action='store_true')
   parser.add_argument("--test_only", action='store_true', help="Skip training, only run test on saved model")
+  parser.add_argument("--use_paws", action='store_true', help="Enable PAWS data mixing for training")
+  parser.add_argument("--paws_mix_ratio", type=float, default=0.3,
+                      help="PAWS samples added relative to Quora train size")
+  parser.add_argument("--paws_max_samples", type=int, default=None,
+                      help="Optional cap on number of PAWS samples mixed into train")
+  parser.add_argument("--paws_seed", type=int, default=11711, help="Random seed for PAWS sampling")
 
   parser.add_argument("--batch_size", help='sst: 64, cfimdb: 8 can fit a 12GB GPU', type=int, default=8)
   parser.add_argument("--lr", type=float, help="learning rate", default=1e-5)
@@ -330,7 +430,14 @@ if __name__ == "__main__":
   args = get_args()
   args = add_arguments(args)  # Add d, l, num_heads before setting filepath
   lora_suffix = f"-lora-{args.lora_mode}" if args.lora_mode != 'none' else ""
-  exp_tag = f"{args.model_size}-{args.epochs}-{args.lr}{lora_suffix}"
+  if args.use_paws:
+    paws_suffix = f"-paws-r{args.paws_mix_ratio}"
+    if args.paws_max_samples is not None:
+      paws_suffix += f"-max{args.paws_max_samples}"
+  else:
+    paws_suffix = "-nopaws"
+  cpt_suffix = "-cptinit" if args.init_gpt_from is not None else ""
+  exp_tag = f"{args.model_size}-{args.epochs}-{args.lr}{lora_suffix}{paws_suffix}{cpt_suffix}"
   args.filepath = f'{exp_tag}-paraphrase.pt'  # Save path.
   # Prediction outputs include full experiment info
   args.para_dev_out = f'predictions/para-dev-{exp_tag}.csv'

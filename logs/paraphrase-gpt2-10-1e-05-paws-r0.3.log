@@ -1,0 +1,42 @@
+2026-03-05 10:46:06 | Args: {'para_train': 'data/quora-train.csv', 'para_dev': 'data/quora-dev.csv', 'para_test': 'data/quora-test-student.csv', 'paws_train': 'data/paws-train.csv', 'para_dev_out': 'predictions/para-dev-gpt2-10-1e-05-paws-r0.3.csv', 'para_test_out': 'predictions/para-test-gpt2-10-1e-05-paws-r0.3.csv', 'seed': 11711, 'epochs': 10, 'use_gpu': True, 'test_only': False, 'use_paws': True, 'paws_mix_ratio': 0.3, 'paws_max_samples': None, 'paws_seed': 11711, 'batch_size': 8, 'lr': 1e-05, 'model_size': 'gpt2', 'lora_mode': 'none', 'lora_r': 8, 'lora_alpha': None, 'd': 768, 'l': 12, 'num_heads': 12, 'filepath': 'gpt2-10-1e-05-paws-r0.3-paraphrase.pt'}
+2026-03-05 10:46:09 | Using PAWS for training: path=data/paws-train.csv, mix_ratio=0.3, max_samples=None, seed=11711
+2026-03-05 10:46:12 | Model params: trainable=125,031,938, total=125,031,938
+2026-03-05 11:44:52 | Epoch 0: train loss :: 0.369, dev acc :: 0.868, dev f1 :: 0.858, best dev acc :: 0.868 [saved]
+2026-03-05 12:44:02 | Epoch 1: train loss :: 0.269, dev acc :: 0.883, dev f1 :: 0.875, best dev acc :: 0.883 [saved]
+2026-03-05 20:25:37 | Args: {'para_train': 'data/quora-train.csv', 'para_dev': 'data/quora-dev.csv', 'para_test': 'data/quora-test-student.csv', 'paws_train': 'data/paws-train.csv', 'para_dev_out': 'predictions/para-dev-gpt2-10-1e-05-paws-r0.3.csv', 'para_test_out': 'predictions/para-test-gpt2-10-1e-05-paws-r0.3.csv', 'seed': 11711, 'epochs': 10, 'resume_from': 'gpt2-10-1e-05-paws-r0.3-paraphrase.pt', 'resume_epoch': 2, 'use_gpu': True, 'test_only': False, 'use_paws': True, 'paws_mix_ratio': 0.3, 'paws_max_samples': None, 'paws_seed': 11711, 'batch_size': 8, 'lr': 1e-05, 'model_size': 'gpt2', 'lora_mode': 'none', 'lora_r': 8, 'lora_alpha': None, 'd': 768, 'l': 12, 'num_heads': 12, 'filepath': 'gpt2-10-1e-05-paws-r0.3-paraphrase.pt'}
+2026-03-05 20:25:40 | Using PAWS for training: path=data/paws-train.csv, mix_ratio=0.3, max_samples=None, seed=11711
+2026-03-05 20:25:46 | Model params: trainable=125,031,938, total=125,031,938
+2026-03-05 20:25:46 | Resuming training from gpt2-10-1e-05-paws-r0.3-paraphrase.pt
+2026-03-05 20:25:55 | Using manual resume_epoch override: 2
+2026-03-05 20:25:55 | Resume state: start_epoch=2, best_dev_acc=0.000
+2026-03-05 21:26:02 | Epoch 2: train loss :: 0.178, dev acc :: 0.885, dev f1 :: 0.877, best dev acc :: 0.885 [saved]
+2026-03-05 22:25:01 | Epoch 3: train loss :: 0.110, dev acc :: 0.888, dev f1 :: 0.881, best dev acc :: 0.888 [saved]
+2026-03-05 23:24:00 | Epoch 4: train loss :: 0.171, dev acc :: 0.892, dev f1 :: 0.885, best dev acc :: 0.892 [saved]
+2026-03-06 00:28:30 | Epoch 5: train loss :: 0.138, dev acc :: 0.894, dev f1 :: 0.888, best dev acc :: 0.894 [saved]
+2026-03-06 00:48:50 | Args: {'para_train': 'data/quora-train.csv', 'para_dev': 'data/quora-dev.csv', 'para_test': 'data/quora-test-student.csv', 'paws_train': 'data/paws-train.csv', 'para_dev_out': 'predictions/para-dev-gpt2-10-1e-05-paws-r0.3.csv', 'para_test_out': 'predictions/para-test-gpt2-10-1e-05-paws-r0.3.csv', 'seed': 11711, 'epochs': 10, 'resume_from': None, 'resume_epoch': None, 'use_gpu': True, 'test_only': False, 'use_paws': True, 'paws_mix_ratio': 0.3, 'paws_max_samples': None, 'paws_seed': 11711, 'batch_size': 16, 'lr': 1e-05, 'model_size': 'gpt2', 'lora_mode': 'none', 'lora_r': 8, 'lora_alpha': None, 'd': 768, 'l': 12, 'num_heads': 12, 'filepath': 'gpt2-10-1e-05-paws-r0.3-paraphrase.pt'}
+2026-03-06 00:48:54 | Using PAWS for training: path=data/paws-train.csv, mix_ratio=0.3, max_samples=None, seed=11711
+2026-03-06 00:48:56 | Model params: trainable=125,031,938, total=125,031,938
+2026-03-06 01:29:21 | Args: {'para_train': 'data/quora-train.csv', 'para_dev': 'data/quora-dev.csv', 'para_test': 'data/quora-test-student.csv', 'paws_train': 'data/paws-train.csv', 'para_dev_out': 'predictions/para-dev-gpt2-10-1e-05-paws-r0.3.csv', 'para_test_out': 'predictions/para-test-gpt2-10-1e-05-paws-r0.3.csv', 'seed': 11711, 'epochs': 10, 'resume_from': None, 'resume_epoch': None, 'use_gpu': True, 'test_only': False, 'use_paws': True, 'paws_mix_ratio': 0.3, 'paws_max_samples': None, 'paws_seed': 11711, 'batch_size': 16, 'lr': 1e-05, 'model_size': 'gpt2', 'lora_mode': 'none', 'lora_r': 8, 'lora_alpha': None, 'd': 768, 'l': 12, 'num_heads': 12, 'filepath': 'gpt2-10-1e-05-paws-r0.3-paraphrase.pt'}
+2026-03-06 01:29:24 | Using PAWS for training: path=data/paws-train.csv, mix_ratio=0.3, max_samples=None, seed=11711
+2026-03-06 01:29:27 | Model params: trainable=125,031,938, total=125,031,938
+2026-03-06 02:17:16 | Epoch 0: train loss :: 0.380, dev acc :: 0.864, dev f1 :: 0.856, best dev acc :: 0.864 [saved]
+2026-03-06 03:05:09 | Epoch 1: train loss :: 0.283, dev acc :: 0.878, dev f1 :: 0.870, best dev acc :: 0.878 [saved]
+2026-03-06 03:53:03 | Epoch 2: train loss :: 0.237, dev acc :: 0.885, dev f1 :: 0.878, best dev acc :: 0.885 [saved]
+2026-03-06 04:51:09 | Args: {'para_train': 'data/quora-train.csv', 'para_dev': 'data/quora-dev.csv', 'para_test': 'data/quora-test-student.csv', 'paws_train': 'data/paws-train.csv', 'para_dev_out': 'predictions/para-dev-gpt2-10-1e-05-paws-r0.3.csv', 'para_test_out': 'predictions/para-test-gpt2-10-1e-05-paws-r0.3.csv', 'seed': 11711, 'epochs': 10, 'resume_from': 'gpt2-10-1e-05-paws-r0.3-paraphrase.pt', 'resume_epoch': 3, 'use_gpu': True, 'test_only': False, 'use_paws': True, 'paws_mix_ratio': 0.3, 'paws_max_samples': None, 'paws_seed': 11711, 'batch_size': 16, 'lr': 1e-05, 'model_size': 'gpt2', 'lora_mode': 'none', 'lora_r': 8, 'lora_alpha': None, 'd': 768, 'l': 12, 'num_heads': 12, 'filepath': 'gpt2-10-1e-05-paws-r0.3-paraphrase.pt'}
+2026-03-06 04:51:12 | Using PAWS for training: path=data/paws-train.csv, mix_ratio=0.3, max_samples=None, seed=11711
+2026-03-06 04:51:18 | Model params: trainable=125,031,938, total=125,031,938
+2026-03-06 04:51:18 | Resuming training from gpt2-10-1e-05-paws-r0.3-paraphrase.pt
+2026-03-06 04:51:26 | Using manual resume_epoch override: 3
+2026-03-06 04:51:26 | Resume state: start_epoch=3, best_dev_acc=0.885
+2026-03-06 05:38:19 | Epoch 3: train loss :: 0.173, dev acc :: 0.890, dev f1 :: 0.882, best dev acc :: 0.890 [saved]
+2026-03-06 06:25:09 | Epoch 4: train loss :: 0.120, dev acc :: 0.887, dev f1 :: 0.880, best dev acc :: 0.890
+2026-03-06 07:11:58 | Epoch 5: train loss :: 0.088, dev acc :: 0.887, dev f1 :: 0.879, best dev acc :: 0.890
+2026-03-06 07:59:00 | Epoch 6: train loss :: 0.142, dev acc :: 0.892, dev f1 :: 0.886, best dev acc :: 0.892 [saved]
+2026-03-06 08:46:02 | Epoch 7: train loss :: 0.119, dev acc :: 0.894, dev f1 :: 0.887, best dev acc :: 0.894 [saved]
+2026-03-06 09:32:54 | Epoch 8: train loss :: 0.100, dev acc :: 0.892, dev f1 :: 0.885, best dev acc :: 0.894
+2026-03-06 10:19:45 | Epoch 9: train loss :: 0.084, dev acc :: 0.894, dev f1 :: 0.887, best dev acc :: 0.894
+2026-03-06 10:19:48 | [Test] Loaded model from gpt2-10-1e-05-paws-r0.3-paraphrase.pt
+2026-03-06 10:19:48 | [Test] Model: gpt2, lora_mode=none, lora_r=8, lr=1e-05, epochs=10, batch_size=16
+2026-03-06 10:19:48 | [Test] Params: trainable=125,031,938, total=125,031,938
+2026-03-06 10:22:46 | [Test] Dev — acc: 0.894, f1: 0.887, loss: 0.327
+2026-03-06 10:25:38 | [Test] Predictions saved to predictions/para-dev-gpt2-10-1e-05-paws-r0.3.csv and predictions/para-test-gpt2-10-1e-05-paws-r0.3.csv

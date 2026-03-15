@@ -36,7 +36,9 @@ class LoRALinear(nn.Module):
 
   def _init_lora(self):
     # A: Kaiming uniform
-    nn.init.kaiming_uniform_(self.lora_A, a=math.sqrt(5))
+    # nn.init.kaiming_uniform_(self.lora_A, a=math.sqrt(5))
+    nn.init.normal_(self.lora_A, mean=0.0, std=0.02)
+
     # B: zeros so that initial delta is zero
     nn.init.zeros_(self.lora_B)
 

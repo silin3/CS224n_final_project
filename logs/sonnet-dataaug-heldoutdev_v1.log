@@ -1,0 +1,47 @@
+python sonnet_generation.py   --use_gpu   --sonnet_path data/shakespeare_poetry_augmented.txt   --held_out_sonnet_path data/sonnets_held_out_dev.txt   --run_name sonnet-dataaug-heldoutdev   --epochs 10   --temperature 1.2   --top_p 0.9   --batch_size 32   --lr 1e-5   --val_ratio 0.1   --early_stop_patience 3   --model_size gpt2
+Experiment: sonnet-dataaug-heldoutdev_v1
+  Best checkpoint: best_sonnet-dataaug-heldoutdev_v1-sonnet.pt
+  Predictions: predictions/sonnets-sonnet-dataaug-heldoutdev_v1.txt
+  Train: lr=1e-05, batch=32, val_ratio=0.1, patience=3
+  Gen: temp=1.2, top_p=0.9, N=5, ngram=3, min_new=120, max_new=220
+train-0: 100%|████████████████████████████████████████████████████████████████████████████████████████████████| 10/10 [00:08<00:00,  1.20it/s]
+eval: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:00<00:00,  7.02it/s]
+Epoch 0: train_loss=4.9604  val_loss=4.6114
+Saved checkpoint to best_sonnet-dataaug-heldoutdev_v1-sonnet.pt
+train-1: 100%|████████████████████████████████████████████████████████████████████████████████████████████████| 10/10 [00:07<00:00,  1.41it/s]
+eval: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:00<00:00,  7.43it/s]
+Epoch 1: train_loss=4.7751  val_loss=4.5050
+Saved checkpoint to best_sonnet-dataaug-heldoutdev_v1-sonnet.pt
+train-2: 100%|████████████████████████████████████████████████████████████████████████████████████████████████| 10/10 [00:07<00:00,  1.41it/s]
+eval: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:00<00:00,  7.26it/s]
+Epoch 2: train_loss=4.6646  val_loss=4.4316
+Saved checkpoint to best_sonnet-dataaug-heldoutdev_v1-sonnet.pt
+train-3: 100%|████████████████████████████████████████████████████████████████████████████████████████████████| 10/10 [00:07<00:00,  1.41it/s]
+eval: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:00<00:00,  7.24it/s]
+Epoch 3: train_loss=4.5875  val_loss=4.3860
+Saved checkpoint to best_sonnet-dataaug-heldoutdev_v1-sonnet.pt
+train-4: 100%|████████████████████████████████████████████████████████████████████████████████████████████████| 10/10 [00:07<00:00,  1.40it/s]
+eval: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:00<00:00,  7.27it/s]
+Epoch 4: train_loss=4.5199  val_loss=4.3495
+Saved checkpoint to best_sonnet-dataaug-heldoutdev_v1-sonnet.pt
+train-5: 100%|████████████████████████████████████████████████████████████████████████████████████████████████| 10/10 [00:07<00:00,  1.42it/s]
+eval: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:00<00:00,  7.31it/s]
+Epoch 5: train_loss=4.4689  val_loss=4.3160
+Saved checkpoint to best_sonnet-dataaug-heldoutdev_v1-sonnet.pt
+train-6: 100%|████████████████████████████████████████████████████████████████████████████████████████████████| 10/10 [00:07<00:00,  1.41it/s]
+eval: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:00<00:00,  7.25it/s]
+Epoch 6: train_loss=4.4178  val_loss=4.2883
+Saved checkpoint to best_sonnet-dataaug-heldoutdev_v1-sonnet.pt
+train-7: 100%|████████████████████████████████████████████████████████████████████████████████████████████████| 10/10 [00:07<00:00,  1.39it/s]
+eval: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:00<00:00,  7.21it/s]
+Epoch 7: train_loss=4.3752  val_loss=4.2654
+Saved checkpoint to best_sonnet-dataaug-heldoutdev_v1-sonnet.pt
+train-8: 100%|████████████████████████████████████████████████████████████████████████████████████████████████| 10/10 [00:07<00:00,  1.40it/s]
+eval: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:00<00:00,  7.17it/s]
+Epoch 8: train_loss=4.3386  val_loss=4.2466
+Saved checkpoint to best_sonnet-dataaug-heldoutdev_v1-sonnet.pt
+train-9: 100%|████████████████████████████████████████████████████████████████████████████████████████████████| 10/10 [00:07<00:00,  1.41it/s]
+eval: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:00<00:00,  7.17it/s]
+Epoch 9: train_loss=4.3024  val_loss=4.2271
+Saved checkpoint to best_sonnet-dataaug-heldoutdev_v1-sonnet.pt
+Wrote predictions to predictions/sonnets-sonnet-dataaug-heldoutdev_v1.txt

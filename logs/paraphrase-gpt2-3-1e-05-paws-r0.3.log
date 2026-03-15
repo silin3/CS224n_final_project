@@ -1,0 +1,12 @@
+2026-03-05 05:36:29 | Args: {'para_train': 'data/quora-train.csv', 'para_dev': 'data/quora-dev.csv', 'para_test': 'data/quora-test-student.csv', 'paws_train': 'data/paws-train.csv', 'para_dev_out': 'predictions/para-dev-gpt2-3-1e-05-paws-r0.3.csv', 'para_test_out': 'predictions/para-test-gpt2-3-1e-05-paws-r0.3.csv', 'seed': 11711, 'epochs': 3, 'use_gpu': True, 'test_only': False, 'use_paws': True, 'paws_mix_ratio': 0.3, 'paws_max_samples': None, 'paws_seed': 11711, 'batch_size': 8, 'lr': 1e-05, 'model_size': 'gpt2', 'lora_mode': 'none', 'lora_r': 8, 'lora_alpha': None, 'd': 768, 'l': 12, 'num_heads': 12, 'filepath': 'gpt2-3-1e-05-paws-r0.3-paraphrase.pt'}
+2026-03-05 05:36:32 | Using PAWS for training: path=data/paws-train.csv, mix_ratio=0.3, max_samples=None, seed=11711
+2026-03-05 05:36:38 | Model params: trainable=125,031,938, total=125,031,938
+2026-03-05 06:35:04 | Epoch 0: train loss :: 0.369, dev acc :: 0.868, dev f1 :: 0.858, best dev acc :: 0.868 [saved]
+2026-03-05 07:35:03 | Epoch 1: train loss :: 0.269, dev acc :: 0.883, dev f1 :: 0.875, best dev acc :: 0.883 [saved]
+2026-03-05 08:34:15 | Epoch 2: train loss :: 0.220, dev acc :: 0.890, dev f1 :: 0.883, best dev acc :: 0.890 [saved]
+2026-03-05 10:32:27 | Args: {'para_train': 'data/quora-train.csv', 'para_dev': 'data/quora-dev.csv', 'para_test': 'data/quora-test-student.csv', 'paws_train': 'data/paws-train.csv', 'para_dev_out': 'predictions/para-dev-gpt2-3-1e-05-paws-r0.3.csv', 'para_test_out': 'predictions/para-test-gpt2-3-1e-05-paws-r0.3.csv', 'seed': 11711, 'epochs': 3, 'use_gpu': True, 'test_only': True, 'use_paws': True, 'paws_mix_ratio': 0.3, 'paws_max_samples': None, 'paws_seed': 11711, 'batch_size': 8, 'lr': 1e-05, 'model_size': 'gpt2', 'lora_mode': 'none', 'lora_r': 8, 'lora_alpha': None, 'd': 768, 'l': 12, 'num_heads': 12, 'filepath': 'gpt2-3-1e-05-paws-r0.3-paraphrase.pt'}
+2026-03-05 10:32:31 | [Test] Loaded model from gpt2-3-1e-05-paws-r0.3-paraphrase.pt
+2026-03-05 10:32:31 | [Test] Model: gpt2, lora_mode=none, lora_r=8, lr=1e-05, epochs=3, batch_size=8
+2026-03-05 10:32:31 | [Test] Params: trainable=125,031,938, total=125,031,938
+2026-03-05 10:35:31 | [Test] Dev — acc: 0.890, f1: 0.883, loss: 0.259
+2026-03-05 10:38:27 | [Test] Predictions saved to predictions/para-dev-gpt2-3-1e-05-paws-r0.3.csv and predictions/para-test-gpt2-3-1e-05-paws-r0.3.csv

@@ -15,6 +15,7 @@ import argparse
 import glob
 import os
 import random
+from types import SimpleNamespace
 import torch
 import numpy as np
 import torch.nn.functional as F
@@ -24,7 +25,7 @@ from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
 from transformers import GPT2Tokenizer
 
-from datasets import SonnetsDataset
+from datasets import SonnetsDataset, PrefixSonnetsDataset
 from models.gpt2 import GPT2Model
 from modules.lora import apply_lora_to_gpt2
 from modules.qlora import apply_qlora_to_gpt2
@@ -277,6 +278,17 @@ def auto_version(base_tag):
       return v, tag
 
 
+def _to_namespace(obj):
+  if isinstance(obj, argparse.Namespace):
+    return obj
+  if isinstance(obj, dict):
+    return argparse.Namespace(**obj)
+  if isinstance(obj, SimpleNamespace):
+    return argparse.Namespace(**vars(obj))
+  raise TypeError(f"Unsupported args type in checkpoint: {type(obj)}")
+
+
+def save_model(model, optimizer, args, filepath, epoch=None, best_val=None, early_state=None):
 def infer_eval_split_tag(held_out_path: str) -> str:
   """Infer eval split label from held-out prompt file name."""
   name = os.path.basename(held_out_path).lower()
@@ -300,12 +312,16 @@ def save_model(model, optimizer, args, filepath):
   save_info = {
     "model": model.state_dict(),
     "optim": optimizer.state_dict(),
-    "args": args,
+    "args": vars(args),
     "lora_config": lora_config,
     "version": getattr(args, "version", "v1"),
+    "epoch": epoch,
+    "best_val": best_val,
+    "early_state": early_state,
     "system_rng": random.getstate(),
     "numpy_rng": np.random.get_state(),
     "torch_rng": torch.random.get_rng_state(),
+    "cuda_rng": torch.cuda.random.get_rng_state_all() if torch.cuda.is_available() else None,
   }
   torch.save(save_info, filepath)
   print(f"Saved checkpoint to {filepath}")
@@ -325,7 +341,10 @@ def compute_lm_loss(model, dataloader, device):
     logits = model(b_ids, b_mask)                 # [B, T, V]
     shift_logits = logits[:, :-1, :].contiguous()
     shift_labels = b_ids[:, 1:].contiguous()
-    shift_mask = b_mask[:, 1:].contiguous().float()
+    if "loss_mask" in batch:
+      shift_mask = batch["loss_mask"][:, 1:].to(device).contiguous().float()
+    else:
+      shift_mask = b_mask[:, 1:].contiguous().float()
 
     per_tok = F.cross_entropy(
       shift_logits.view(-1, shift_logits.size(-1)),
@@ -345,7 +364,17 @@ def compute_lm_loss(model, dataloader, device):
 def train(args):
   device = torch.device("cuda") if args.use_gpu else torch.device("cpu")
 
-  full_dataset = SonnetsDataset(args.sonnet_path)
+  if args.multi_prefix_train:
+    prefix_line_counts = tuple(int(x.strip()) for x in args.prefix_line_counts.split(",") if x.strip())
+    full_dataset = PrefixSonnetsDataset(
+      args.sonnet_path,
+      prefix_line_counts=prefix_line_counts,
+      min_target_lines=args.min_target_lines,
+    )
+    print(f"Using multi-prefix training: prefix_lines={prefix_line_counts}, min_target_lines={args.min_target_lines}, "
+          f"examples={len(full_dataset)}")
+  else:
+    full_dataset = SonnetsDataset(args.sonnet_path)
   n_total = len(full_dataset)
 
   # Allow val_ratio=0.0 (no early stop)
@@ -388,8 +417,35 @@ def train(args):
 
   best_path = f"best_{args.filepath}"
   best_val = float("inf")
+  start_epoch = 0
 
-  for epoch in range(args.epochs):
+  if args.resume_from is not None:
+    print(f"Resuming from {args.resume_from}")
+    saved = torch.load(args.resume_from, weights_only=False, map_location=device)
+    model.load_state_dict(saved["model"])
+    optimizer.load_state_dict(saved["optim"])
+    start_epoch = int(saved.get("epoch", -1)) + 1
+    best_val = float(saved.get("best_val", float("inf")))
+    early_state = saved.get("early_state")
+    if early_state is not None:
+      early.best = float(early_state.get("best", best_val))
+      early.num_bad = int(early_state.get("num_bad", 0))
+      early.should_stop = bool(early_state.get("should_stop", False))
+    else:
+      early.best = best_val
+
+    if "system_rng" in saved:
+      random.setstate(saved["system_rng"])
+    if "numpy_rng" in saved:
+      np.random.set_state(saved["numpy_rng"])
+    if "torch_rng" in saved:
+      torch.random.set_rng_state(saved["torch_rng"])
+    if device.type == "cuda" and "cuda_rng" in saved:
+      torch.cuda.random.set_rng_state_all(saved["cuda_rng"])
+
+    print(f"Resume state: start_epoch={start_epoch}, best_val={best_val:.4f}, num_bad={early.num_bad}")
+
+  for epoch in range(start_epoch, args.epochs):
     model.train()
     running = 0.0
     nb = 0
@@ -404,7 +460,10 @@ def train(args):
       # padding-masked LM loss
       shift_logits = logits[:, :-1, :].contiguous()
       shift_labels = b_ids[:, 1:].contiguous()
-      shift_mask = b_mask[:, 1:].contiguous().float()
+      if "loss_mask" in batch:
+        shift_mask = batch["loss_mask"][:, 1:].to(device).contiguous().float()
+      else:
+        shift_mask = b_mask[:, 1:].contiguous().float()
 
       per_tok = F.cross_entropy(
         shift_logits.view(-1, shift_logits.size(-1)),
@@ -424,23 +483,29 @@ def train(args):
 
     if val_loader is None:
       print(f"Epoch {epoch}: train_loss={train_loss:.4f}")
-      # no val: just keep overwriting best with last
-      save_model(model, optimizer, args, best_path)
+      early_state = {"best": early.best, "num_bad": early.num_bad, "should_stop": early.should_stop}
+      save_model(model, optimizer, args, args.filepath, epoch=epoch, best_val=best_val, early_state=early_state)
+      save_model(model, optimizer, args, best_path, epoch=epoch, best_val=best_val, early_state=early_state)
       continue
 
     val_loss = compute_lm_loss(model, val_loader, device)
     print(f"Epoch {epoch}: train_loss={train_loss:.4f}  val_loss={val_loss:.4f}")
+    improved = val_loss < best_val - args.early_stop_min_delta
 
-    if val_loss < best_val - args.early_stop_min_delta:
+    if improved:
       best_val = val_loss
-      save_model(model, optimizer, args, best_path)
       early.best = best_val
       early.num_bad = 0
+      early.should_stop = False
+      early_state = {"best": early.best, "num_bad": early.num_bad, "should_stop": early.should_stop}
+      save_model(model, optimizer, args, best_path, epoch=epoch, best_val=best_val, early_state=early_state)
     else:
       early.step(val_loss)
-      if early.should_stop:
-        print(f"Early stopping at epoch {epoch}. Best val_loss={best_val:.4f}")
-        break
+    early_state = {"best": early.best, "num_bad": early.num_bad, "should_stop": early.should_stop}
+    save_model(model, optimizer, args, args.filepath, epoch=epoch, best_val=best_val, early_state=early_state)
+    if (not improved) and early.should_stop:
+      print(f"Early stopping at epoch {epoch}. Best val_loss={best_val:.4f}")
+      break
 
   return best_path
 
@@ -453,7 +518,7 @@ def generate_submission_sonnets(args, checkpoint_path):
   device = torch.device("cuda") if args.use_gpu else torch.device("cpu")
   saved = torch.load(checkpoint_path, weights_only=False)
 
-  model = SonnetGPT(saved["args"])
+  model = SonnetGPT(_to_namespace(saved["args"]))
   model.load_state_dict(saved["model"])
   model = model.to(device)
   model.eval()
@@ -500,6 +565,10 @@ def get_args():
   p.add_argument("--sonnet_path", type=str, default="data/sonnets.txt")
   p.add_argument("--held_out_sonnet_path", type=str, default="data/sonnets_held_out_dev.txt")
   p.add_argument("--sonnet_out", type=str, default="predictions/generated_sonnets.txt")
+  p.add_argument("--run_name", type=str, default=None,
+                 help="Optional experiment label used in checkpoint and prediction filenames")
+  p.add_argument("--resume_from", type=str, default=None,
+                 help="Resume sonnet training from a saved checkpoint")
 
   p.add_argument("--seed", type=int, default=11711)
   p.add_argument("--epochs", type=int, default=10)
@@ -509,6 +578,12 @@ def get_args():
   p.add_argument("--batch_size", type=int, default=8)
   p.add_argument("--lr", type=float, default=1e-5)
   p.add_argument("--grad_clip", type=float, default=1.0)
+  p.add_argument("--multi_prefix_train", action="store_true",
+                 help="Train on multiple prefix->continuation examples built from each sonnet")
+  p.add_argument("--prefix_line_counts", type=str, default="4,6,8",
+                 help="Comma-separated prefix line counts used when --multi_prefix_train is enabled")
+  p.add_argument("--min_target_lines", type=int, default=4,
+                 help="Minimum number of continuation lines to keep in prefix training mode")
 
   # Val + early stop (tiny split; set 0 to disable)
   p.add_argument("--val_ratio", type=float, default=0.02)
@@ -565,6 +640,23 @@ def main():
   else:
     lora_suffix = ""
 
+  if args.resume_from is not None:
+    exp_tag = os.path.basename(args.resume_from)
+    if exp_tag.endswith("-sonnet.pt"):
+      exp_tag = exp_tag[:-10]
+    args.filepath = f"{exp_tag}-sonnet.pt"
+    args.sonnet_out = f"predictions/sonnets-{exp_tag}.txt"
+    args.version = "resume"
+  else:
+    if args.run_name is not None:
+      base_tag = args.run_name
+    else:
+      base_tag = f"{args.model_size}-{args.epochs}-{args.lr}{lora_suffix}"
+    version, exp_tag = auto_version(base_tag)
+    args.version = f"v{version}"
+
+    args.filepath = f"{exp_tag}-sonnet.pt"
+    args.sonnet_out = f"predictions/sonnets-{exp_tag}.txt"
   base_tag = f"{args.model_size}-{args.epochs}-{args.lr}{lora_suffix}"
   version, exp_tag = auto_version(base_tag)
   args.version = f"v{version}"
@@ -586,6 +678,8 @@ def main():
     else:
       print(f"  LoRA: mode={args.lora_mode}, r={args.lora_r}, alpha={args.lora_alpha}")
   print(f"  Train: lr={args.lr}, batch={args.batch_size}, val_ratio={args.val_ratio}, patience={args.early_stop_patience}")
+  if args.multi_prefix_train:
+    print(f"  Prefix train: lines={args.prefix_line_counts}, min_target_lines={args.min_target_lines}")
   print(f"  Gen: temp={args.temperature}, top_p={args.top_p}, N={args.num_candidates}, ngram={args.no_repeat_ngram_size}, "
         f"min_new={args.min_new_tokens}, max_new={args.max_new_tokens}")
 
